@@ -44,7 +44,7 @@ export const config = {
 };
 
 export const paths = {
-  root: path.resolve(__dirname, '../../..'),
+  root: path.resolve(__dirname, '../..'),
   uploads: config.uploadDir,
   reports: config.reportDir
 };
