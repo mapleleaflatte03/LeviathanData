@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leviathan-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leviathan-gateway
+  template:
+    metadata:
+      labels:
+        app: leviathan-gateway
+    spec:
+      containers:
+        - name: gateway
+          image: your-registry/leviathan-gateway:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: PYTHON_URL
+              value: "http://leviathan-python:8000"
+            - name: JWT_SECRET
+              value: "change-me"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leviathan-gateway
+spec:
+  selector:
+    app: leviathan-gateway
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP

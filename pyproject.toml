@@ -1,0 +1,32 @@
+[project]
+name = "leviathan"
+version = "0.1.0"
+description = "Leviathan Python services and tool integrations"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Leviathan"}]
+dependencies = [
+  "fastapi>=0.112.0",
+  "uvicorn[standard]>=0.30.0",
+  "pydantic>=2.7.0",
+  "requests>=2.32.0",
+  "python-multipart>=0.0.9",
+  "prometheus-client>=0.20.0",
+  "aiofiles>=24.1.0"
+]
+
+[project.optional-dependencies]
+core = ["pandas>=2.2.0", "numpy>=1.26.0"]
+ml = ["scikit-learn>=1.5.0", "xgboost>=2.1.0", "lightgbm>=4.3.0", "flaml>=2.3.0"]
+llm = ["torch>=2.3.0", "tensorflow>=2.16.0", "transformers>=4.44.0"]
+vector = ["chromadb>=0.5.0", "qdrant-client>=1.9.0", "weaviate-client>=4.7.0", "lancedb>=0.6.0"]
+vision = ["open-clip-torch>=2.24.0", "pytesseract>=0.3.10"]
+audio = ["openai-whisper>=20231117"]
+workflow = ["prefect>=2.20.0", "apache-airflow>=2.9.0", "mage-ai>=0.9.0"]
+visual = ["plotly>=5.22.0", "dash>=2.17.0", "streamlit>=1.36.0"]
+observability = ["prometheus-client>=0.20.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests/unit"]

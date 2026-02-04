@@ -1,0 +1,107 @@
+version: "3.9"
+
+services:
+  gateway:
+    image: node:20
+    working_dir: /app
+    volumes:
+      - ..:/app
+    command: ["/bin/sh", "-c", "npm install && node backend/node/server.js"]
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../.env
+    environment:
+      PYTHON_URL: http://python:8000
+    depends_on:
+      - python
+
+  python:
+    image: python:3.11
+    working_dir: /app
+    volumes:
+      - ..:/app
+    command: ["/bin/sh", "-c", "pip install -r requirements.txt && python -m uvicorn backend.python.app:app --host 0.0.0.0 --port 8000"]
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+
+  chroma:
+    image: chromadb/chroma:latest
+    profiles: ["vector"]
+    ports:
+      - "8001:8000"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    profiles: ["vector"]
+    ports:
+      - "6333:6333"
+
+  weaviate:
+    image: semitechnologies/weaviate:1.25.2
+    profiles: ["vector"]
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+    ports:
+      - "8080:8080"
+
+  neo4j:
+    image: neo4j:5
+    profiles: ["vector"]
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/pleasechange
+
+  airflow:
+    image: apache/airflow:2.9.0
+    profiles: ["orchestration"]
+    ports:
+      - "8081:8080"
+
+  prefect:
+    image: prefecthq/prefect:2-latest
+    profiles: ["orchestration"]
+    ports:
+      - "4200:4200"
+
+  nifi:
+    image: apache/nifi:latest
+    profiles: ["orchestration"]
+    ports:
+      - "8082:8080"
+
+  mage:
+    image: mageai/mageai:latest
+    profiles: ["orchestration"]
+    ports:
+      - "6789:6789"
+
+  superset:
+    image: apache/superset:latest
+    profiles: ["visual"]
+    ports:
+      - "8088:8088"
+
+  metabase:
+    image: metabase/metabase:latest
+    profiles: ["visual"]
+    ports:
+      - "3001:3000"
+
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["observability"]
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    profiles: ["observability"]
+    ports:
+      - "3002:3000"

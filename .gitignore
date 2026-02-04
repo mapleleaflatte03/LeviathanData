@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.eggs/
+*.egg-info/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+
+# Build outputs
+dist/
+build/
+*.js.map
+
+# Testing
+coverage/
+.nyc_output/
+.pytest_cache/
+htmlcov/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data (keep structure, ignore content)
+data/leviathan.db
+data/uploads/*
+!data/uploads/.gitkeep
+data/reports/*
+!data/reports/.gitkeep
+
+# Rust build
+rust/leviathan_accel/target/
+rust/leviathan_accel/Cargo.lock
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

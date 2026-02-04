@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: leviathan-caddyfile
+data:
+  Caddyfile: |
+    app.welliam.codes {
+      encode gzip
+      reverse_proxy leviathan-gateway:3000
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leviathan-caddy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leviathan-caddy
+  template:
+    metadata:
+      labels:
+        app: leviathan-caddy
+    spec:
+      containers:
+        - name: caddy
+          image: caddy:2
+          ports:
+            - containerPort: 80
+            - containerPort: 443
+          volumeMounts:
+            - name: caddy-config
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+      volumes:
+        - name: caddy-config
+          configMap:
+            name: leviathan-caddyfile
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leviathan-caddy
+spec:
+  selector:
+    app: leviathan-caddy
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+    - port: 443
+      targetPort: 443
+      protocol: TCP

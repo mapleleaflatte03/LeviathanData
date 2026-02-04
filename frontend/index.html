@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Leviathan</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="ocean-bg"></div>
+  <header class="topbar">
+    <div class="brand">
+      <div class="eye"></div>
+      <div>
+        <h1>Leviathan</h1>
+        <p>Autonomous Data Intelligence Platform</p>
+      </div>
+    </div>
+    <div class="status" id="status">Disconnected</div>
+  </header>
+
+  <main class="layout">
+    <section class="panel auth" id="authPanel">
+      <h2>Enter the Abyss</h2>
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Login</button>
+        <button class="tab" data-tab="register">Register</button>
+      </div>
+      <form id="loginForm" class="form active">
+        <label>Email<input type="email" name="email" required /></label>
+        <label>Password<input type="password" name="password" required /></label>
+        <button type="submit">Login</button>
+      </form>
+      <form id="registerForm" class="form">
+        <label>Email<input type="email" name="email" required /></label>
+        <label>Password<input type="password" name="password" required /></label>
+        <button type="submit">Register</button>
+      </form>
+      <div class="helper" id="authMessage"></div>
+    </section>
+
+    <section class="panel dashboard" id="dashboardPanel">
+      <div class="dashboard-grid">
+        <div class="card">
+          <h3>Swarm Console</h3>
+          <div class="chat" id="chatLog"></div>
+          <div class="chat-input">
+            <input type="text" id="chatInput" placeholder="Ask Leviathan..." />
+            <button id="chatSend">Send</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Ingestion Bay</h3>
+          <form id="uploadForm">
+            <input type="file" name="file" />
+            <button type="submit">Upload + Analyze</button>
+          </form>
+          <div class="pipeline" id="pipelineStatus"></div>
+        </div>
+        <div class="card">
+          <h3>Alerts</h3>
+          <div class="alerts" id="alertsList"></div>
+        </div>
+        <div class="card">
+          <h3>Dynamic Charts</h3>
+          <div class="chart" id="chart"></div>
+          <button id="refreshChart">Refresh Chart</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div>Leviathan © 2026</div>
+    <button id="logout">Logout</button>
+  </footer>
+
+  <script src="/script.js"></script>
+</body>
+</html>

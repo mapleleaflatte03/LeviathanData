@@ -1,0 +1,43 @@
+# Leviathan Production Caddyfile
+# Auto-HTTPS via Let's Encrypt (no Certbot needed)
+
+app.welliam.codes {
+    encode gzip zstd
+    
+    # Security headers
+    header {
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    }
+    
+    # Reverse proxy to Node.js gateway
+    reverse_proxy localhost:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# API subdomain (optional - routes to same backend)
+api.welliam.codes {
+    encode gzip zstd
+    
+    header {
+        X-Content-Type-Options "nosniff"
+        Access-Control-Allow-Origin "https://app.welliam.codes"
+        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Authorization, Content-Type"
+    }
+    
+    reverse_proxy localhost:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+}
+
+# Python service (internal only, not exposed publicly)
+# Use localhost:8000 from Node.js gateway
