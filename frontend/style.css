@@ -1627,3 +1627,155 @@ button:active { transform: translateY(0); }
 
   input { min-height: 48px; }
 }
+/* ===== EXPANDED CHAT LAYOUT (Prompt-Only Mode) ===== */
+.dashboard-grid-expanded {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.chat-card-full {
+  grid-column: span 2;
+  grid-row: span 1;
+}
+
+.chat-card-full .chat {
+  height: 400px;
+}
+
+.chat-card-full h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hunt-status {
+  margin-left: auto;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  background: rgba(0, 170, 200, 0.2);
+  border: 1px solid var(--tide-400);
+  border-radius: 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  animation: huntPulse 2s ease-in-out infinite;
+}
+
+.hunt-status.hunting {
+  background: rgba(255, 60, 60, 0.2);
+  border-color: #ff3333;
+  animation: huntPulse 0.5s ease-in-out infinite;
+}
+
+@keyframes huntPulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; box-shadow: 0 0 10px rgba(0, 170, 200, 0.5); }
+}
+
+.hunt-suggestions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: rgba(0, 8, 18, 0.6);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.suggestion-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.hunt-btn {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, var(--abyss-700), var(--abyss-800));
+  border: 1px solid var(--tide-500);
+  border-radius: 16px;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.hunt-btn:hover {
+  background: linear-gradient(135deg, var(--tide-500), var(--abyss-700));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 136, 170, 0.3);
+}
+
+.hunt-btn:active {
+  transform: translateY(0);
+}
+
+.chat-input-enhanced {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.chat-input-enhanced input {
+  flex: 1;
+  min-width: 0;
+}
+
+.hunt-action-btn {
+  background: linear-gradient(135deg, #ff3333, #cc0000);
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+}
+
+.hunt-action-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 30px rgba(255, 0, 0, 0.5);
+}
+
+.hunt-action-btn.hunting {
+  animation: huntBtnPulse 0.5s ease-in-out infinite;
+}
+
+@keyframes huntBtnPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 0, 0, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(255, 0, 0, 0.7); }
+}
+
+/* Chart tab active states */
+.chart-tab[data-chart="forecast"].active {
+  background: linear-gradient(135deg, #ff9900, #cc6600);
+}
+
+.chart-tab[data-chart="custom"].active {
+  background: linear-gradient(135deg, #9933ff, #6600cc);
+}
+
+/* Mobile adjustments for expanded layout */
+@media (max-width: 768px) {
+  .dashboard-grid-expanded {
+    grid-template-columns: 1fr;
+  }
+  
+  .chat-card-full {
+    grid-column: span 1;
+  }
+  
+  .hunt-suggestions {
+    flex-wrap: wrap;
+  }
+  
+  .hunt-btn {
+    flex: 1;
+    min-width: calc(50% - 8px);
+    text-align: center;
+  }
+}

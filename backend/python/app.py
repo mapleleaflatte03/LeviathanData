@@ -2,15 +2,17 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
 from starlette.responses import Response
+import asyncio
 import logging
 
 from .config import CONFIG
-from .schemas import PipelineRequest, PipelineResponse, ToolRequest, LLMChatRequest, LLMChatResponse
+from .schemas import PipelineRequest, PipelineResponse, ToolRequest, LLMChatRequest, LLMChatResponse, HuntRequest, HuntResponse
 from .orchestrator import ingest, analyze, visualize, reflect
 from .tool_registry import run_tool, list_tools
 from .llm_client import chat_completion
 from .storage import ensure_dirs
 from .background import start_background_jobs
+from .crawler import autonomous_hunt, get_background_hunter
 
 logger = logging.getLogger("leviathan-python")
 logging.basicConfig(level=CONFIG["log_level"].upper())
@@ -104,3 +106,73 @@ def llm_chat(req: LLMChatRequest):
         return LLMChatResponse(text=text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/hunt", response_model=HuntResponse)
+async def hunt(req: HuntRequest):
+    """Autonomous ethical data hunt endpoint."""
+    REQUEST_COUNT.labels("hunt").inc()
+    try:
+        logger.info(f"Hunt request: {req.prompt[:100]}...")
+        
+        # Run autonomous hunt
+        result = await autonomous_hunt(
+            prompt=req.prompt,
+            on_progress=lambda s, m: logger.info(f"[{s}] {m}"),
+        )
+        
+        # Generate summary using LLM
+        summary = ""
+        if result["items_collected"] > 0:
+            try:
+                summary_prompt = f"""Summarize the hunt results:
+- Collected {result['items_collected']} items
+- Sources: {', '.join(result['sources'])}
+- Sample data: {str(result['data'][:3])[:500]}
+
+Provide a brief, helpful summary of what was found."""
+                
+                summary = chat_completion([{"role": "user", "content": summary_prompt}])
+            except Exception as e:
+                logger.warning(f"Summary generation failed: {e}")
+                summary = f"Collected {result['items_collected']} items from {len(result['sources'])} sources."
+        else:
+            summary = "No data found. Try more specific queries like 'VN stock trends' or 'Kaggle Titanic dataset'."
+        
+        # Prepare chart data if we have numeric data
+        chart_data = None
+        if result["data"] and len(result["data"]) > 0:
+            first_item = result["data"][0]
+            if "close" in first_item or "value" in first_item:
+                # Time-series data
+                chart_data = {
+                    "type": "line",
+                    "labels": [d.get("date", str(i)) for i, d in enumerate(result["data"][:50])],
+                    "values": [d.get("close") or d.get("value") or 0 for d in result["data"][:50]],
+                    "title": f"Hunt Results: {req.prompt[:30]}..."
+                }
+        
+        return HuntResponse(
+            items_collected=result["items_collected"],
+            sources=result["sources"],
+            data=result["data"][:100],  # Limit returned data
+            summary=summary,
+            chart_data=chart_data,
+            timestamp=result["timestamp"]
+        )
+        
+    except Exception as exc:
+        logger.error(f"Hunt failed: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/hunt/status")
+def hunt_status():
+    """Get background hunter status."""
+    hunter = get_background_hunter()
+    return {
+        "running": hunter.running,
+        "last_hunt": hunter.last_hunt.isoformat() if hunter.last_hunt else None,
+        "hunt_count": len(hunter.hunt_results),
+        "targets": hunter.hunt_targets,
+    }

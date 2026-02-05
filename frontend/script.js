@@ -203,6 +203,18 @@ const handleWsMessage = (msg) => {
     case 'chat:end':
       finishStreaming();
       break;
+    case 'hunt:token':
+      handleChatToken(msg.payload.token);
+      break;
+    case 'hunt:progress':
+      handleHuntProgress(msg.payload);
+      break;
+    case 'hunt:complete':
+      handleHuntComplete(msg.payload);
+      break;
+    case 'hunt:error':
+      handleHuntError(msg.payload);
+      break;
     case 'pipeline:status':
       updatePipeline(msg.payload);
       break;
@@ -224,6 +236,47 @@ const handleWsMessage = (msg) => {
     case 'llm:stats':
       updateLlmStats(msg.payload);
       break;
+  }
+};
+
+// ===== HUNT HANDLERS =====
+const handleHuntProgress = (payload) => {
+  const { stage, message, source, itemsFound } = payload;
+  logToConsole('hunt', stage?.toUpperCase() || 'HUNT', message || 'Hunting...');
+  
+  if (source) {
+    logToConsole('info', 'SOURCE', `Crawling: ${source}`);
+  }
+  if (itemsFound) {
+    logToConsole('success', 'DATA', `Found ${itemsFound} items`);
+  }
+};
+
+const handleHuntComplete = (payload) => {
+  endHunt(true);
+  finishStreaming();
+  
+  const { itemsCollected, sources, chartData } = payload;
+  logToConsole('success', 'HUNT', `Hunt complete! Collected ${itemsCollected || 0} items from ${sources?.length || 0} sources`);
+  
+  if (chartData) {
+    updateChartData(chartData);
+  }
+  
+  showToast(`Hunt complete: ${itemsCollected || 0} items collected`, 'success');
+};
+
+const handleHuntError = (payload) => {
+  endHunt(false);
+  finishStreaming();
+  
+  const { error, partial } = payload;
+  logToConsole('error', 'HUNT', error || 'Hunt failed');
+  
+  if (partial) {
+    showToast(`Partial hunt: ${error}`, 'warning');
+  } else {
+    showToast(`Hunt failed: ${error}`, 'error');
   }
 };
 
@@ -617,19 +670,23 @@ const renderChart = (type) => {
   let data;
   
   // Handle distribution and correlation views by deriving from main data
-  if (type === 'distribution' || type === 'correlation') {
+  if (type === 'distribution' || type === 'correlation' || type === 'forecast' || type === 'custom') {
     try {
       const mainData = state.chartData['main'];
-      if (!mainData || (!mainData.actual && !mainData.y)) {
+      if (!mainData || (!mainData.actual && !mainData.y && !mainData.values)) {
         // No data available
         data = [{
-          x: ['Upload a file'],
+          x: ['Start a Hunt'],
           y: [0],
           type: 'bar',
           marker: { color: 'rgba(0,136,170,0.3)' }
         }];
         layout.annotations = [{
-          text: 'Upload a file to see ' + type + ' analysis',
+          text: type === 'forecast' ? 
+            'Hunt for time-series data to see forecasts' :
+            type === 'custom' ? 
+            'Hunt for data, then customize your visualization' :
+            'Hunt for data to see ' + type + ' analysis',
           showarrow: false,
           x: 0.5,
           y: 0.5,
@@ -637,6 +694,133 @@ const renderChart = (type) => {
           yref: 'paper',
           font: { size: 14, color: 'rgba(216,243,255,0.5)' }
         }];
+        Plotly.newPlot('plotlyChart', data, layout, config);
+        return;
+      }
+      
+      if (type === 'forecast') {
+        // Generate simple forecast from available data
+        const actual = mainData.actual || mainData.y || mainData.values || [];
+        const labels = mainData.x || mainData.labels || actual.map((_, i) => i + 1);
+        
+        if (actual.length < 3) {
+          throw new Error('Need at least 3 data points for forecast');
+        }
+        
+        // Simple moving average forecast
+        const windowSize = Math.min(5, Math.floor(actual.length / 2));
+        const lastValues = actual.slice(-windowSize);
+        const avgGrowth = (lastValues[lastValues.length - 1] - lastValues[0]) / (windowSize - 1);
+        const lastValue = actual[actual.length - 1];
+        
+        // Generate 5 forecast points
+        const forecastPoints = [];
+        const forecastLabels = [];
+        for (let i = 1; i <= 5; i++) {
+          forecastPoints.push(lastValue + avgGrowth * i);
+          const label = typeof labels[0] === 'string' ? 
+            `Forecast ${i}` : 
+            (labels[labels.length - 1] || actual.length) + i;
+          forecastLabels.push(label);
+        }
+        
+        // Confidence bands (±10%)
+        const upperBand = forecastPoints.map(v => v * 1.1);
+        const lowerBand = forecastPoints.map(v => v * 0.9);
+        
+        data = [
+          {
+            x: labels,
+            y: actual,
+            name: 'Historical',
+            type: 'scatter',
+            mode: 'lines+markers',
+            marker: { color: '#0088aa' },
+            line: { color: '#0088aa', width: 2 }
+          },
+          {
+            x: forecastLabels,
+            y: forecastPoints,
+            name: 'Forecast',
+            type: 'scatter',
+            mode: 'lines+markers',
+            marker: { color: '#ff9900', symbol: 'diamond' },
+            line: { color: '#ff9900', width: 2, dash: 'dot' }
+          },
+          {
+            x: forecastLabels,
+            y: upperBand,
+            name: 'Upper 90%',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#ff990055', width: 0 },
+            showlegend: false
+          },
+          {
+            x: forecastLabels,
+            y: lowerBand,
+            name: 'Lower 90%',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#ff990055', width: 0 },
+            fill: 'tonexty',
+            fillcolor: 'rgba(255,153,0,0.2)',
+            showlegend: false
+          }
+        ];
+        
+        layout.title = { text: 'Trend Forecast', font: { color: '#d8f3ff', size: 16 } };
+        layout.xaxis.title = 'Period';
+        layout.yaxis.title = 'Value';
+        
+        Plotly.newPlot('plotlyChart', data, layout, config);
+        return;
+      }
+      
+      if (type === 'custom') {
+        // Custom multi-chart view
+        const actual = mainData.actual || mainData.y || mainData.values || [];
+        const labels = mainData.x || mainData.labels || actual.map((_, i) => i + 1);
+        
+        // Calculate statistics
+        const sum = actual.reduce((a, b) => a + (parseFloat(b) || 0), 0);
+        const mean = sum / actual.length;
+        const sorted = [...actual].sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)];
+        const min = sorted[0];
+        const max = sorted[sorted.length - 1];
+        
+        // Box plot with overlaid scatter
+        data = [
+          {
+            y: actual,
+            type: 'box',
+            name: 'Distribution',
+            marker: { color: '#0088aa' },
+            boxpoints: 'all',
+            jitter: 0.3,
+            pointpos: -1.8
+          },
+          {
+            x: labels.slice(0, 20),
+            y: actual.slice(0, 20),
+            type: 'scatter',
+            mode: 'markers',
+            name: 'Sample Points',
+            xaxis: 'x2',
+            yaxis: 'y2',
+            marker: { color: '#ff3333', size: 8 }
+          }
+        ];
+        
+        layout.title = { 
+          text: `Custom View | Mean: ${mean.toFixed(2)} | Median: ${median} | Range: [${min}, ${max}]`, 
+          font: { color: '#d8f3ff', size: 14 } 
+        };
+        layout.xaxis = { ...layout.xaxis, domain: [0, 0.4] };
+        layout.xaxis2 = { ...layout.xaxis, domain: [0.5, 1], anchor: 'y2' };
+        layout.yaxis2 = { ...layout.yaxis, anchor: 'x2' };
+        
         Plotly.newPlot('plotlyChart', data, layout, config);
         return;
       }
@@ -825,9 +1009,9 @@ const renderChart = (type) => {
       }];
     }
   } else {
-    // No data yet - show "awaiting upload" placeholder
+    // No data yet - show "awaiting hunt" placeholder
     data = [{
-      x: ['Upload a file'],
+      x: ['Start a Hunt'],
       y: [0],
       type: 'bar',
       marker: { color: 'rgba(0,136,170,0.3)' },
@@ -836,7 +1020,7 @@ const renderChart = (type) => {
       hoverinfo: 'none'
     }];
     layout.annotations = [{
-      text: 'Upload a file to see real data visualization',
+      text: 'Ask Leviathan to hunt data for visualization',
       showarrow: false,
       x: 0.5,
       y: 0.5,
@@ -1007,10 +1191,87 @@ const logout = async () => {
   showToast('Logged out', 'info');
 };
 
+// ===== AUTONOMOUS HUNT =====
+const setupHuntButtons = () => {
+  const huntSuggestions = $('#huntSuggestions');
+  if (!huntSuggestions) return;
+  
+  huntSuggestions.querySelectorAll('.hunt-btn').forEach(btn => {
+    btn.onclick = () => {
+      const huntType = btn.dataset.hunt;
+      const huntPrompts = {
+        'vn-stock': 'Hunt for Vietnam stock market trends. Crawl Yahoo Finance and Alpha Vantage for VNI index data, analyze patterns, and show me price trends with forecasts.',
+        'vn-news': 'Hunt for Vietnam news sentiment. Crawl VNExpress and Cafef RSS feeds, analyze sentiment of recent articles, and show me the sentiment distribution.',
+        'kaggle-titanic': 'Hunt for the Kaggle Titanic dataset. Download from Kaggle API, analyze survival factors, train a classifier, and visualize the results.',
+        'world-bank': 'Hunt for World Bank Vietnam GDP data. Fetch from the World Bank API, analyze economic trends, and show me GDP growth over time with forecasts.'
+      };
+      
+      const prompt = huntPrompts[huntType] || `Hunt for ${huntType} data`;
+      chatInput.value = prompt;
+      startHunt();
+    };
+  });
+};
+
+const startHunt = () => {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  
+  const huntStatus = $('#huntStatus');
+  const huntBtn = $('#huntBtn');
+  
+  // Update UI to show hunting state
+  if (huntStatus) {
+    huntStatus.textContent = '🔴 Hunting...';
+    huntStatus.classList.add('hunting');
+  }
+  if (huntBtn) {
+    huntBtn.classList.add('hunting');
+  }
+  
+  appendChat('user', text);
+  state.chatMessages.push({ role: 'user', content: text });
+  
+  typingIndicator.classList.add('active');
+  activateTentacles();
+  intensifyEye();
+  
+  // Send hunt request via WebSocket
+  state.ws.send(JSON.stringify({
+    type: 'hunt:request',
+    requestId: crypto.randomUUID(),
+    payload: { 
+      prompt: text, 
+      messages: state.chatMessages, 
+      stream: true,
+      hunt: true  // Flag for autonomous hunting
+    }
+  }));
+  
+  logToConsole('hunt', 'HUNT', `Autonomous hunt started: "${text.slice(0, 50)}..."`);
+  chatInput.value = '';
+};
+
+const endHunt = (success = true) => {
+  const huntStatus = $('#huntStatus');
+  const huntBtn = $('#huntBtn');
+  
+  if (huntStatus) {
+    huntStatus.textContent = success ? '✅ Hunt Complete' : '⚠️ Hunt Partial';
+    huntStatus.classList.remove('hunting');
+    setTimeout(() => {
+      huntStatus.textContent = '🔍 Ready';
+    }, 3000);
+  }
+  if (huntBtn) {
+    huntBtn.classList.remove('hunting');
+  }
+};
+
 // ===== INIT =====
 const boot = () => {
   setupTabs();
-  setupUpload();
+  setupHuntButtons();
   setupQuickActions();
   setupChartControls();
   
@@ -1022,6 +1283,12 @@ const boot = () => {
       sendChat();
     }
   };
+  
+  // Hunt button listener
+  const huntBtn = $('#huntBtn');
+  if (huntBtn) {
+    huntBtn.onclick = startHunt;
+  }
   
   $('#loginForm').onsubmit = (e) => {
     e.preventDefault();
@@ -1050,7 +1317,7 @@ const boot = () => {
     showAuth();
   }
   
-  logToConsole('info', 'SYSTEM', 'Leviathan frontend initialized');
+  logToConsole('info', 'SYSTEM', 'Leviathan autonomous hunter initialized');
 };
 
 // Start

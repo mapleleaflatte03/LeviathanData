@@ -241,9 +241,9 @@
         </button>
       </div>
 
-      <div class="dashboard-grid">
-        <!-- Chat Panel -->
-        <div class="card chat-card">
+      <div class="dashboard-grid dashboard-grid-expanded">
+        <!-- Chat Panel - Full Width Command Center -->
+        <div class="card chat-card chat-card-full">
           <h3>
             <span class="card-icon svg-icon chat-icon">
               <svg viewBox="0 0 24 24" class="monster-svg">
@@ -254,8 +254,16 @@
                 <circle cx="16" cy="10" r="0.8" fill="#000"/>
               </svg>
             </span>
-            Swarm Chat
+            Leviathan Command Center
+            <span class="hunt-status" id="huntStatus" title="Autonomous Hunt Status">🔍 Ready</span>
           </h3>
+          <div class="hunt-suggestions" id="huntSuggestions">
+            <span class="suggestion-label">Quick Hunts:</span>
+            <button class="hunt-btn" data-hunt="vn-stock">📈 VN Stock Trends</button>
+            <button class="hunt-btn" data-hunt="vn-news">📰 VN News Sentiment</button>
+            <button class="hunt-btn" data-hunt="kaggle-titanic">🚢 Kaggle Titanic</button>
+            <button class="hunt-btn" data-hunt="world-bank">🌍 World Bank GDP</button>
+          </div>
           <div class="chat" id="chatLog">
             <div class="chat-entry bot">
               <div class="avatar agent-avatar">
@@ -263,7 +271,7 @@
               </div>
               <div class="message">
                 <span class="sender">Leviathan</span>
-                <p>I am awake. How may I assist you today?</p>
+                <p>I am awake and ready to hunt. Just describe what data you need - I'll crawl, analyze, and visualize it autonomously.</p>
               </div>
             </div>
           </div>
@@ -272,134 +280,18 @@
             <div class="dot"></div>
             <div class="dot"></div>
           </div>
-          <div class="chat-input">
-            <input type="text" id="chatInput" placeholder="Ask Leviathan..." />
+          <div class="chat-input chat-input-enhanced">
+            <input type="text" id="chatInput" placeholder="Describe data you need: 'Analyze VN stock market trends from Yahoo Finance'..." />
+            <button id="huntBtn" class="hunt-action-btn" title="Start Autonomous Hunt">
+              <svg viewBox="0 0 24 24" width="24" height="24">
+                <circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+                <line x1="15" y1="15" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="10" cy="10" r="2" fill="#ff3333"/>
+              </svg>
+            </button>
             <button id="chatSend">
               <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
-          </div>
-        </div>
-
-        <!-- Upload Zone -->
-        <div class="card upload-card">
-          <h3>
-            <span class="card-icon svg-icon ingest-bay-icon">
-              <svg viewBox="0 0 24 24" class="monster-svg">
-                <defs>
-                  <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#0088aa"/>
-                    <stop offset="100%" stop-color="#004466"/>
-                  </linearGradient>
-                </defs>
-                <path class="wave-path" d="M2 12 Q6 8 12 12 Q18 16 22 12" stroke="url(#waveGrad)" stroke-width="2" fill="none"/>
-                <path class="wave-path w2" d="M2 16 Q6 12 12 16 Q18 20 22 16" stroke="url(#waveGrad)" stroke-width="2" fill="none" opacity="0.6"/>
-                <circle cx="12" cy="8" r="3" fill="#ff3333"/>
-                <circle cx="12" cy="8" r="1" fill="#000"/>
-              </svg>
-            </span>
-            Ingestion Bay
-          </h3>
-          <div class="upload-zone" id="uploadZone">
-            <div class="wave-animation">
-              <div class="wave w1"></div>
-              <div class="wave w2"></div>
-              <div class="wave w3"></div>
-            </div>
-            <div class="upload-content">
-              <div class="upload-icon svg-icon vortex-icon">
-                <svg viewBox="0 0 64 64" class="monster-svg vortex-svg">
-                  <!-- Deep sea vortex pull -->
-                  <defs>
-                    <radialGradient id="vortexGrad" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stop-color="#ff3333"/>
-                      <stop offset="40%" stop-color="#0088aa"/>
-                      <stop offset="100%" stop-color="#001122"/>
-                    </radialGradient>
-                  </defs>
-                  <!-- Spiral tentacles -->
-                  <path class="vortex-spiral s1" d="M32 32 Q42 22 48 32 Q54 42 44 48" stroke="#0088aa" stroke-width="2" fill="none"/>
-                  <path class="vortex-spiral s2" d="M32 32 Q22 22 16 32 Q10 42 20 48" stroke="#0088aa" stroke-width="2" fill="none"/>
-                  <path class="vortex-spiral s3" d="M32 32 Q32 18 42 18 Q52 18 52 28" stroke="#006688" stroke-width="2" fill="none"/>
-                  <path class="vortex-spiral s4" d="M32 32 Q32 46 22 46 Q12 46 12 36" stroke="#006688" stroke-width="2" fill="none"/>
-                  <!-- Center eye -->
-                  <circle cx="32" cy="32" r="10" fill="url(#vortexGrad)" class="vortex-eye"/>
-                  <circle cx="32" cy="32" r="4" fill="#000"/>
-                  <circle cx="30" cy="30" r="2" fill="rgba(255,255,255,0.3)"/>
-                  <!-- Pulling particles -->
-                  <circle class="particle p1" cx="50" cy="20" r="2" fill="#0088aa"/>
-                  <circle class="particle p2" cx="14" cy="44" r="1.5" fill="#0088aa"/>
-                  <circle class="particle p3" cx="48" cy="50" r="1" fill="#00aacc"/>
-                </svg>
-              </div>
-              <p>Drag & Drop files here</p>
-              <p class="upload-hint">or click to browse</p>
-              <input type="file" id="fileInput" multiple hidden />
-            </div>
-          </div>
-          <div class="pipeline-progress" id="pipelineProgress">
-            <div class="pipeline-stage" data-stage="ingest">
-              <div class="stage-icon svg-icon ingest-icon">
-                <svg viewBox="0 0 24 24" class="monster-svg">
-                  <!-- Tentacle pulling file in -->
-                  <rect x="8" y="4" width="10" height="12" rx="1" fill="#001a2c" stroke="#0088aa" stroke-width="1"/>
-                  <path class="pull-tentacle" d="M4 18 Q2 14 4 10 Q6 6 10 8" stroke="#0088aa" stroke-width="2" fill="none" stroke-linecap="round"/>
-                  <path class="pull-tentacle t2" d="M20 18 Q22 14 20 10 Q18 6 14 8" stroke="#006688" stroke-width="1.5" fill="none"/>
-                  <circle cx="4" cy="18" r="2" fill="#ff3333"/>
-                </svg>
-              </div>
-              <div class="stage-label">Ingest</div>
-              <div class="stage-bar"><div class="stage-fill"></div></div>
-            </div>
-            <div class="pipeline-stage" data-stage="analyze">
-              <div class="stage-icon svg-icon analyze-icon">
-                <svg viewBox="0 0 24 24" class="monster-svg">
-                  <!-- Brain-like tentacles thinking -->
-                  <ellipse cx="12" cy="10" rx="8" ry="6" fill="#220022" stroke="#0088aa" stroke-width="1"/>
-                  <path class="brain-tentacle b1" d="M6 14 Q4 18 6 20" stroke="#0088aa" stroke-width="1.5" fill="none"/>
-                  <path class="brain-tentacle b2" d="M10 15 Q10 19 8 21" stroke="#0088aa" stroke-width="1.5" fill="none"/>
-                  <path class="brain-tentacle b3" d="M14 15 Q14 19 16 21" stroke="#0088aa" stroke-width="1.5" fill="none"/>
-                  <path class="brain-tentacle b4" d="M18 14 Q20 18 18 20" stroke="#0088aa" stroke-width="1.5" fill="none"/>
-                  <!-- Thinking sparks -->
-                  <circle class="spark" cx="8" cy="8" r="1" fill="#ff3333"/>
-                  <circle class="spark s2" cx="14" cy="7" r="1" fill="#ff3333"/>
-                  <circle class="spark s3" cx="16" cy="10" r="0.8" fill="#ffaa00"/>
-                </svg>
-              </div>
-              <div class="stage-label">Analyze</div>
-              <div class="stage-bar"><div class="stage-fill"></div></div>
-            </div>
-            <div class="pipeline-stage" data-stage="visualize">
-              <div class="stage-icon svg-icon visualize-icon">
-                <svg viewBox="0 0 24 24" class="monster-svg">
-                  <!-- Eye projecting charts -->
-                  <circle cx="6" cy="12" r="5" fill="#330000" stroke="#ff3333" stroke-width="1"/>
-                  <circle cx="6" cy="12" r="2" fill="#ff3333" class="proj-eye"/>
-                  <circle cx="6" cy="12" r="0.8" fill="#000"/>
-                  <!-- Projected chart lines -->
-                  <line class="proj-line" x1="11" y1="12" x2="22" y2="12" stroke="#0088aa" stroke-width="1" opacity="0.4"/>
-                  <path class="proj-chart" d="M12 16 L14 10 L16 14 L18 8 L20 12 L22 6" stroke="#00ccee" stroke-width="1.5" fill="none"/>
-                  <path class="proj-chart c2" d="M12 18 L15 16 L18 17 L21 15" stroke="#ff3333" stroke-width="1" fill="none" opacity="0.6"/>
-                </svg>
-              </div>
-              <div class="stage-label">Visualize</div>
-              <div class="stage-bar"><div class="stage-fill"></div></div>
-            </div>
-            <div class="pipeline-stage" data-stage="reflect">
-              <div class="stage-icon svg-icon reflect-icon">
-                <svg viewBox="0 0 24 24" class="monster-svg">
-                  <!-- Mirror tentacle reflection -->
-                  <line x1="12" y1="2" x2="12" y2="22" stroke="#0088aa" stroke-width="1" stroke-dasharray="2,2" opacity="0.5"/>
-                  <!-- Left tentacle -->
-                  <path class="mirror-t left" d="M4 8 Q2 12 4 16 Q6 20 4 22" stroke="#0088aa" stroke-width="2" fill="none"/>
-                  <circle cx="4" cy="8" r="2" fill="#ff3333"/>
-                  <!-- Right reflection -->
-                  <path class="mirror-t right" d="M20 8 Q22 12 20 16 Q18 20 20 22" stroke="#006688" stroke-width="2" fill="none" opacity="0.5"/>
-                  <circle cx="20" cy="8" r="2" fill="#ff3333" opacity="0.5"/>
-                </svg>
-              </div>
-              <div class="stage-label">Reflect</div>
-              <div class="stage-bar"><div class="stage-fill"></div></div>
-            </div>
           </div>
         </div>
 
@@ -478,6 +370,8 @@
             <button class="chart-tab active" data-chart="main">Overview</button>
             <button class="chart-tab" data-chart="distribution">Distribution</button>
             <button class="chart-tab" data-chart="correlation">Correlation</button>
+            <button class="chart-tab" data-chart="forecast">Forecast</button>
+            <button class="chart-tab" data-chart="custom">Custom</button>
           </div>
           <div class="chart-container" id="chartContainer">
             <div class="chart-controls">

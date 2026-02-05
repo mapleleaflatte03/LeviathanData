@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { config } from './config.js';
 import { streamChatTokens, chatCompletionText, llmEvents, getLlmStats } from './llmClient.js';
+import { callPython } from './pythonBridge.js';
 
 const parseMessage = (data) => {
   try {
@@ -113,6 +114,50 @@ export const initWebsocket = (server, log) => {
 
       if (msg.type === 'llm:status') {
         send(ws, 'llm:stats', msg.requestId, getLlmStats());
+      }
+
+      // Autonomous hunt handler
+      if (msg.type === 'hunt:request') {
+        const prompt = msg.payload?.prompt || '';
+        const messages = msg.payload?.messages || [];
+        
+        try {
+          // Emit progress start
+          send(ws, 'hunt:progress', msg.requestId, { 
+            stage: 'INIT', 
+            message: 'Starting autonomous hunt...' 
+          });
+          
+          // Call Python hunt endpoint
+          const result = await callPython('/hunt', { 
+            prompt,
+            messages: messages.slice(-5)  // Send last 5 messages for context
+          });
+          
+          // Stream response if available
+          if (result.summary) {
+            for (const token of result.summary.split(' ')) {
+              send(ws, 'hunt:token', msg.requestId, { token: token + ' ' });
+              await new Promise(r => setTimeout(r, 30));  // Simulate streaming
+            }
+          }
+          
+          // Send completion
+          send(ws, 'hunt:complete', msg.requestId, {
+            itemsCollected: result.items_collected || 0,
+            sources: result.sources || [],
+            chartData: result.chart_data || null
+          });
+          send(ws, 'chat:end', msg.requestId, { ok: true });
+          
+        } catch (err) {
+          log?.error({ err }, 'hunt failed');
+          send(ws, 'hunt:error', msg.requestId, { 
+            error: err.message,
+            partial: false
+          });
+          send(ws, 'chat:end', msg.requestId, { ok: false, error: err.message });
+        }
       }
 
       if (msg.type === 'pipeline:subscribe') {
