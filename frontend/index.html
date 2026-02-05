@@ -50,6 +50,10 @@
       </div>
     </div>
     <div class="status-group">
+      <div class="language-toggle" id="languageToggle">
+        <button class="lang-btn active" data-lang="vi" title="Tiếng Việt">🇻🇳 VN</button>
+        <button class="lang-btn" data-lang="en" title="English">🇬🇧 EN</button>
+      </div>
       <div class="status" id="status">
         <span class="status-dot"></span>
         <span class="status-text">Disconnected</span>
@@ -258,11 +262,11 @@
             <span class="hunt-status" id="huntStatus" title="Autonomous Hunt Status">🔍 Ready</span>
           </h3>
           <div class="hunt-suggestions" id="huntSuggestions">
-            <span class="suggestion-label">Quick Hunts:</span>
-            <button class="hunt-btn" data-hunt="vn-stock">📈 VN Stock Trends</button>
-            <button class="hunt-btn" data-hunt="vn-news">📰 VN News Sentiment</button>
-            <button class="hunt-btn" data-hunt="kaggle-titanic">🚢 Kaggle Titanic</button>
-            <button class="hunt-btn" data-hunt="world-bank">🌍 World Bank GDP</button>
+            <span class="suggestion-label">Săn dữ liệu nhanh:</span>
+            <button class="hunt-btn" data-hunt="vn-stock">📈 Chứng khoán VN</button>
+            <button class="hunt-btn" data-hunt="vn-news">📰 Tin tức VN</button>
+            <button class="hunt-btn" data-hunt="vn-gdp">🌍 GDP Việt Nam</button>
+            <button class="hunt-btn" data-hunt="vn-sentiment">💬 Sentiment VN</button>
           </div>
           <div class="chat" id="chatLog">
             <div class="chat-entry bot">
@@ -271,7 +275,7 @@
               </div>
               <div class="message">
                 <span class="sender">Leviathan</span>
-                <p>I am awake and ready to hunt. Just describe what data you need - I'll crawl, analyze, and visualize it autonomously.</p>
+                <p>Tôi đã thức dậy và sẵn sàng săn dữ liệu. Hãy mô tả dữ liệu bạn cần - tôi sẽ tự động thu thập, phân tích và trực quan hóa.</p>
               </div>
             </div>
           </div>
@@ -281,7 +285,7 @@
             <div class="dot"></div>
           </div>
           <div class="chat-input chat-input-enhanced">
-            <input type="text" id="chatInput" placeholder="Describe data you need: 'Analyze VN stock market trends from Yahoo Finance'..." />
+            <input type="text" id="chatInput" placeholder="Ví dụ: Phân tích xu hướng chứng khoán VN gần nhất..." />
             <button id="huntBtn" class="hunt-action-btn" title="Start Autonomous Hunt">
               <svg viewBox="0 0 24 24" width="24" height="24">
                 <circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="2"/>

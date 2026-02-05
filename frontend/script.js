@@ -15,9 +15,6 @@ const chatLog = $('#chatLog');
 const chatInput = $('#chatInput');
 const chatSend = $('#chatSend');
 const typingIndicator = $('#typingIndicator');
-const uploadZone = $('#uploadZone');
-const fileInput = $('#fileInput');
-const pipelineProgress = $('#pipelineProgress');
 const swarmConsole = $('#swarmConsole');
 const alertsList = $('#alertsList');
 const alertBadge = $('#alertBadge');
@@ -34,6 +31,7 @@ const tentacles = $('#tentacles');
 const brandTitle = $('#brandTitle');
 const alertSound = $('#alertSound');
 const logoutBtn = $('#logout');
+const languageToggle = $('#languageToggle');
 
 // LLM Status Panel elements
 const llmStatus = $('#llmStatus');
@@ -52,6 +50,7 @@ const state = {
   accessToken: localStorage.getItem('accessToken') || '',
   refreshToken: localStorage.getItem('refreshToken') || '',
   userId: localStorage.getItem('userId') || '',
+  language: localStorage.getItem('leviathan_lang') || 'vi',  // Default Vietnamese
   ws: null,
   chatMessages: [],
   currentBotEl: null,
@@ -68,7 +67,9 @@ const state = {
     lastEndpoint: null,
     healthy: true
   },
-  llmLogVisible: false
+  llmLogVisible: false,
+  huntFilters: {},  // For PowerBI-like filtering
+  drilldownData: null  // For drill-down views
 };
 
 // ===== UTILITIES =====
@@ -452,85 +453,190 @@ const escapeHtml = (text) => {
   return div.innerHTML;
 };
 
-// ===== UPLOAD & PIPELINE =====
-const setupUpload = () => {
-  uploadZone.onclick = () => fileInput.click();
-  fileInput.onchange = handleFileSelect;
+// ===== LANGUAGE TOGGLE =====
+const setupLanguageToggle = () => {
+  if (!languageToggle) return;
   
-  uploadZone.ondragover = (e) => {
-    e.preventDefault();
-    uploadZone.classList.add('dragover');
-  };
+  // Set initial active state
+  languageToggle.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === state.language);
+    btn.onclick = () => {
+      state.language = btn.dataset.lang;
+      localStorage.setItem('leviathan_lang', state.language);
+      languageToggle.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      updateUILanguage();
+      showToast(state.language === 'vi' ? 'Đã chuyển sang Tiếng Việt' : 'Switched to English', 'info');
+    };
+  });
   
-  uploadZone.ondragleave = () => {
-    uploadZone.classList.remove('dragover');
-  };
-  
-  uploadZone.ondrop = (e) => {
-    e.preventDefault();
-    uploadZone.classList.remove('dragover');
-    const files = e.dataTransfer.files;
-    if (files.length) uploadFiles(files);
-  };
+  updateUILanguage();
 };
 
-const handleFileSelect = () => {
-  if (fileInput.files.length) {
-    uploadFiles(fileInput.files);
+const updateUILanguage = () => {
+  const isVN = state.language === 'vi';
+  
+  // Update chat placeholder
+  if (chatInput) {
+    chatInput.placeholder = isVN 
+      ? 'Ví dụ: Phân tích xu hướng chứng khoán VN gần nhất...'
+      : 'e.g., Analyze recent VN stock market trends...';
   }
-};
-
-const uploadFiles = async (files) => {
-  activateTentacles();
-  intensifyEye();
-  logToConsole('ingest', 'INGEST', `Uploading ${files.length} file(s)...`);
   
-  for (const file of files) {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    try {
-      resetPipelineUI();
-      setPipelineStage('ingest', 'active');
-      
-      const res = await apiFetch('/api/files/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      
-      if (!res.ok) {
-        showToast(data.error || 'Upload failed', 'error');
-        setPipelineStage('ingest', 'error');
-        logToConsole('error', 'INGEST', `Failed: ${data.error}`);
-        continue;
-      }
-      
-      state.pipelineRunId = data.runId;
-      logToConsole('success', 'INGEST', `File "${file.name}" queued → Run ${data.runId}`);
-      showToast(`Uploaded: ${file.name}`, 'success');
-      
-    } catch (err) {
-      showToast('Upload error: ' + err.message, 'error');
-      setPipelineStage('ingest', 'error');
+  // Update hunt suggestions
+  const suggestionLabel = $('.suggestion-label');
+  if (suggestionLabel) {
+    suggestionLabel.textContent = isVN ? 'Săn dữ liệu nhanh:' : 'Quick Hunts:';
+  }
+  
+  // Update hunt button labels
+  const huntBtnLabels = {
+    'vn-stock': isVN ? '📈 Chứng khoán VN' : '📈 VN Stocks',
+    'vn-news': isVN ? '📰 Tin tức VN' : '📰 VN News',
+    'vn-gdp': isVN ? '🌍 GDP Việt Nam' : '🌍 Vietnam GDP',
+    'vn-sentiment': isVN ? '💬 Sentiment VN' : '💬 VN Sentiment'
+  };
+  
+  $$('.hunt-btn').forEach(btn => {
+    const hunt = btn.dataset.hunt;
+    if (huntBtnLabels[hunt]) {
+      btn.textContent = huntBtnLabels[hunt];
     }
-  }
-};
-
-const resetPipelineUI = () => {
-  $$('.pipeline-stage').forEach(s => {
-    s.classList.remove('active', 'complete', 'error');
-    s.querySelector('.stage-fill').style.width = '0%';
   });
 };
 
-const setPipelineStage = (stage, status) => {
-  const el = $(`.pipeline-stage[data-stage="${stage}"]`);
-  if (!el) return;
+// Detect language from text (Vietnamese detection)
+const detectLanguage = (text) => {
+  const vnChars = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+  return vnChars.test(text) ? 'vi' : 'en';
+};
+
+// ===== POWERBI-LIKE EXPORT CONTROLS =====
+const setupExportControls = () => {
+  // Add export controls to each chart container
+  const chartContainers = $$('.chart-container');
+  chartContainers.forEach((container, idx) => {
+    // Skip if already has controls
+    if (container.querySelector('.chart-export-controls')) return;
+    
+    const controls = document.createElement('div');
+    controls.className = 'chart-export-controls';
+    controls.innerHTML = `
+      <button class="export-btn" data-format="csv" data-chart="${idx}">📊 CSV</button>
+      <button class="export-btn" data-format="png" data-chart="${idx}">🖼️ PNG</button>
+      <button class="export-btn" data-format="pdf" data-chart="${idx}">📄 PDF</button>
+    `;
+    container.appendChild(controls);
+  });
   
-  el.classList.remove('active', 'complete', 'error');
-  if (status) el.classList.add(status);
+  // Attach export handlers
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('export-btn')) {
+      const format = e.target.dataset.format;
+      const chartIdx = e.target.dataset.chart;
+      exportChart(format, chartIdx);
+    }
+  });
   
-  if (status === 'complete') {
-    el.querySelector('.stage-fill').style.width = '100%';
+  // Setup drill-down modal
+  setupDrilldownModal();
+};
+
+const exportChart = (format, chartIdx) => {
+  const isVN = state.language === 'vi';
+  
+  if (format === 'csv') {
+    // Export visible data as CSV
+    const data = state.lastData?.analysis?.data_preview || state.lastData?.analysis?.rows || [];
+    if (data.length === 0) {
+      showToast(isVN ? 'Không có dữ liệu để xuất' : 'No data to export', 'warning');
+      return;
+    }
+    
+    const headers = Object.keys(data[0] || {});
+    const csv = [
+      headers.join(','),
+      ...data.map(row => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))
+    ].join('\n');
+    
+    downloadFile(csv, 'leviathan-data.csv', 'text/csv');
+    showToast(isVN ? 'Đã xuất CSV' : 'CSV exported', 'success');
+  } 
+  else if (format === 'png') {
+    const chartContainer = $$('.chart-container')[chartIdx];
+    const canvas = chartContainer?.querySelector('canvas');
+    if (canvas) {
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'leviathan-chart.png';
+      a.click();
+      showToast(isVN ? 'Đã xuất PNG' : 'PNG exported', 'success');
+    } else {
+      showToast(isVN ? 'Không tìm thấy biểu đồ' : 'No chart found', 'warning');
+    }
   }
+  else if (format === 'pdf') {
+    // Simple PDF generation using print
+    window.print();
+    showToast(isVN ? 'Đang in PDF...' : 'Printing PDF...', 'info');
+  }
+};
+
+const downloadFile = (content, filename, mimeType) => {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+const setupDrilldownModal = () => {
+  // Add drilldown modal to DOM if not exists
+  if (!$('#drilldownModal')) {
+    const modal = document.createElement('div');
+    modal.id = 'drilldownModal';
+    modal.className = 'drilldown-modal';
+    modal.innerHTML = `
+      <div class="drilldown-content">
+        <div class="drilldown-header">
+          <span class="drilldown-title">${state.language === 'vi' ? 'Chi tiết dữ liệu' : 'Data Details'}</span>
+          <button class="drilldown-close">&times;</button>
+        </div>
+        <div class="drilldown-body"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    modal.querySelector('.drilldown-close').onclick = () => modal.classList.remove('active');
+    modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+  }
+};
+
+const showDrilldown = (label, dataPoint) => {
+  const isVN = state.language === 'vi';
+  const modal = $('#drilldownModal');
+  if (!modal) return;
+  
+  const body = modal.querySelector('.drilldown-body');
+  const title = modal.querySelector('.drilldown-title');
+  
+  title.textContent = isVN ? `Chi tiết: ${label}` : `Details: ${label}`;
+  
+  // Display data in table format
+  let html = '<table class="drilldown-table"><thead><tr>';
+  const keys = Object.keys(dataPoint || {});
+  keys.forEach(k => html += `<th>${k}</th>`);
+  html += '</tr></thead><tbody><tr>';
+  keys.forEach(k => html += `<td>${dataPoint[k] ?? '-'}</td>`);
+  html += '</tr></tbody></table>';
+  
+  body.innerHTML = html;
+  modal.classList.add('active');
 };
 
 const updatePipeline = (payload) => {
@@ -1199,14 +1305,24 @@ const setupHuntButtons = () => {
   huntSuggestions.querySelectorAll('.hunt-btn').forEach(btn => {
     btn.onclick = () => {
       const huntType = btn.dataset.hunt;
+      const isVN = state.language === 'vi';
+      
       const huntPrompts = {
-        'vn-stock': 'Hunt for Vietnam stock market trends. Crawl Yahoo Finance and Alpha Vantage for VNI index data, analyze patterns, and show me price trends with forecasts.',
-        'vn-news': 'Hunt for Vietnam news sentiment. Crawl VNExpress and Cafef RSS feeds, analyze sentiment of recent articles, and show me the sentiment distribution.',
-        'kaggle-titanic': 'Hunt for the Kaggle Titanic dataset. Download from Kaggle API, analyze survival factors, train a classifier, and visualize the results.',
-        'world-bank': 'Hunt for World Bank Vietnam GDP data. Fetch from the World Bank API, analyze economic trends, and show me GDP growth over time with forecasts.'
+        'vn-stock': isVN 
+          ? 'Phân tích xu hướng chứng khoán Việt Nam gần nhất. Thu thập dữ liệu từ Cafef, Yahoo Finance, VNDIRECT. Hiển thị biểu đồ giá cổ phiếu và dự báo.'
+          : 'Analyze recent Vietnam stock market trends. Crawl Cafef, Yahoo Finance, VNDIRECT. Show stock price charts and forecasts.',
+        'vn-news': isVN
+          ? 'Phân tích sentiment tin tức Việt Nam hôm nay. Thu thập từ VNExpress, Cafef RSS. Phân loại cảm xúc và hiển thị top chủ đề.'
+          : 'Analyze Vietnam news sentiment today. Crawl VNExpress, Cafef RSS. Classify sentiment and show top topics.',
+        'vn-gdp': isVN
+          ? 'Dự báo GDP Việt Nam. Lấy dữ liệu từ World Bank. Phân tích xu hướng kinh tế và dự báo tăng trưởng.'
+          : 'Forecast Vietnam GDP. Fetch World Bank data. Analyze economic trends and growth forecast.',
+        'vn-sentiment': isVN
+          ? 'Phân tích cảm xúc thị trường Việt Nam. Thu thập tin tức tài chính từ Cafef, VNExpress. Dùng HuggingFace BERT phân loại sentiment.'
+          : 'Analyze Vietnam market sentiment. Crawl financial news from Cafef, VNExpress. Use HuggingFace BERT for sentiment classification.'
       };
       
-      const prompt = huntPrompts[huntType] || `Hunt for ${huntType} data`;
+      const prompt = huntPrompts[huntType] || (isVN ? `Săn dữ liệu ${huntType}` : `Hunt for ${huntType} data`);
       chatInput.value = prompt;
       startHunt();
     };
@@ -1220,9 +1336,14 @@ const startHunt = () => {
   const huntStatus = $('#huntStatus');
   const huntBtn = $('#huntBtn');
   
+  // Auto-detect language from input
+  const detectedLang = detectLanguage(text);
+  const responseLang = detectedLang || state.language;
+  
   // Update UI to show hunting state
+  const isVN = responseLang === 'vi';
   if (huntStatus) {
-    huntStatus.textContent = '🔴 Hunting...';
+    huntStatus.textContent = isVN ? '🔴 Đang săn...' : '🔴 Hunting...';
     huntStatus.classList.add('hunting');
   }
   if (huntBtn) {
@@ -1236,7 +1357,7 @@ const startHunt = () => {
   activateTentacles();
   intensifyEye();
   
-  // Send hunt request via WebSocket
+  // Send hunt request via WebSocket with language
   state.ws.send(JSON.stringify({
     type: 'hunt:request',
     requestId: crypto.randomUUID(),
@@ -1244,11 +1365,13 @@ const startHunt = () => {
       prompt: text, 
       messages: state.chatMessages, 
       stream: true,
-      hunt: true  // Flag for autonomous hunting
+      hunt: true,
+      language: responseLang  // Send language for response
     }
   }));
   
-  logToConsole('hunt', 'HUNT', `Autonomous hunt started: "${text.slice(0, 50)}..."`);
+  const logMsg = isVN ? `Bắt đầu săn: "${text.slice(0, 50)}..."` : `Hunt started: "${text.slice(0, 50)}..."`;
+  logToConsole('hunt', 'HUNT', logMsg);
   chatInput.value = '';
 };
 
@@ -1271,9 +1394,11 @@ const endHunt = (success = true) => {
 // ===== INIT =====
 const boot = () => {
   setupTabs();
+  setupLanguageToggle();
   setupHuntButtons();
   setupQuickActions();
   setupChartControls();
+  setupExportControls();
   
   // Event listeners
   chatSend.onclick = sendChat;

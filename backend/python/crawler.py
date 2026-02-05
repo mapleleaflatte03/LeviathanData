@@ -2,11 +2,12 @@
 Leviathan Ethical Autonomous Crawler Module
 
 Ethical guidelines:
-- 3s rate limit between requests
-- Public/legal sources only
-- Max 200 items per hunt
+- 4s rate limit between requests
+- Public/legal sources only  
+- Max 300 items per hunt
 - 60s timeout per source
 - Respect robots.txt
+- VN-focused: Cafef, VNExpress, VNDIRECT, Yahoo Finance VN
 """
 
 from __future__ import annotations
@@ -28,8 +29,8 @@ import pandas as pd
 logger = logging.getLogger("crawler")
 
 # Ethical crawl config
-RATE_LIMIT_SECONDS = 3.0
-MAX_ITEMS_PER_HUNT = 200
+RATE_LIMIT_SECONDS = 4.0
+MAX_ITEMS_PER_HUNT = 300
 TIMEOUT_SECONDS = 60
 USER_AGENT = "Leviathan-DataHunter/1.0 (Ethical Crawler; +https://github.com/leviathan)"
 
@@ -38,8 +39,14 @@ APPROVED_SOURCES = {
     # Vietnam finance
     "vnexpress.net",
     "cafef.vn",
+    "vndirect.com.vn",
+    "stockbiz.vn",
+    "hsc.com.vn",
+    "fpts.com.vn",
     "yahoo.com",
     "finance.yahoo.com",
+    "query1.finance.yahoo.com",
+    "query2.finance.yahoo.com",
     # Data APIs
     "kaggle.com",
     "api.worldbank.org",
@@ -51,6 +58,7 @@ APPROVED_SOURCES = {
     # Government/Open data
     "data.gov",
     "data.gov.vn",
+    "gso.gov.vn",
 }
 
 

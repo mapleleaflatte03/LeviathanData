@@ -1779,3 +1779,247 @@ button:active { transform: translateY(0); }
     text-align: center;
   }
 }
+
+/* ===== LANGUAGE TOGGLE ===== */
+.language-toggle {
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 20, 35, 0.8);
+  border-radius: 8px;
+  padding: 4px;
+  border: 1px solid var(--border);
+}
+
+.lang-btn {
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lang-btn:hover {
+  background: rgba(0, 136, 170, 0.2);
+  color: var(--text);
+}
+
+.lang-btn.active {
+  background: linear-gradient(135deg, var(--tide-500), var(--tide-400));
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 136, 170, 0.3);
+}
+
+/* ===== POWERBI-LIKE DASHBOARD FEATURES ===== */
+.chart-export-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.export-btn {
+  padding: 6px 14px;
+  background: linear-gradient(135deg, var(--abyss-700), var(--abyss-800));
+  border: 1px solid var(--tide-500);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-btn:hover {
+  background: linear-gradient(135deg, var(--tide-500), var(--abyss-700));
+  transform: translateY(-1px);
+}
+
+/* Filter/Slicer Controls */
+.chart-filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filter-select {
+  padding: 6px 10px;
+  background: rgba(0, 15, 30, 0.8);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.85rem;
+  min-width: 120px;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--tide-400);
+  box-shadow: 0 0 8px rgba(0, 136, 170, 0.3);
+}
+
+/* Drill-down Modal */
+.drilldown-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 10, 20, 0.9);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.drilldown-modal.active {
+  display: flex;
+}
+
+.drilldown-content {
+  background: var(--panel);
+  border: 1px solid var(--tide-400);
+  border-radius: 12px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow: auto;
+  padding: 20px;
+  box-shadow: 0 0 40px rgba(0, 136, 170, 0.3);
+}
+
+.drilldown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.drilldown-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--tide-300);
+}
+
+.drilldown-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.drilldown-close:hover {
+  color: var(--error);
+}
+
+.drilldown-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.drilldown-table th,
+.drilldown-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.drilldown-table th {
+  background: rgba(0, 136, 170, 0.1);
+  color: var(--tide-300);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+}
+
+.drilldown-table tr:hover {
+  background: rgba(0, 136, 170, 0.05);
+}
+
+/* Metrics Cards */
+.metrics-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.metric-card {
+  background: linear-gradient(135deg, rgba(0, 136, 170, 0.1), rgba(0, 50, 80, 0.2));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+}
+
+.metric-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--tide-300);
+  line-height: 1.2;
+}
+
+.metric-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.metric-change {
+  font-size: 0.8rem;
+  margin-top: 6px;
+}
+
+.metric-change.positive {
+  color: var(--success);
+}
+
+.metric-change.negative {
+  color: var(--error);
+}
+
+/* Live Refresh Indicator */
+.live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--success);
+  border-radius: 50%;
+  animation: livePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
