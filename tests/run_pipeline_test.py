@@ -22,10 +22,13 @@ from python.orchestrator import ingest, analyze, visualize, reflect, _run_dir
 DATASETS = [
     ("titanic", "data/uploads/titanic__train.csv"),
     ("creditcardfraud", "data/uploads/creditcardfraud__data.csv"),
-    ("dogs-vs-cats", "data/uploads/dogs-vs-cats__cat1.jpg"),
+    ("dogs-vs-cats", "data/uploads/dogs-vs-cats-full"),  # Use new folder with HF images
     ("imdb-reviews", "data/uploads/imdb-reviews__data.csv"),
     ("stock-market", "data/uploads/stock-market__AAPL.csv"),
     ("fake-news", "data/uploads/fake-news__Fake.csv"),
+    ("house-prices", "data/uploads/house-prices__train.csv"),
+    ("heart-disease", "data/uploads/heart-disease__heart.csv"),
+    ("sms-spam", "data/uploads/sms-spam__spam.csv"),
 ]
 
 REPORT_DIR = Path(__file__).parent.parent / "data" / "reports"
