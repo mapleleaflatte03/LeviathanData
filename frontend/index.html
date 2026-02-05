@@ -54,8 +54,28 @@
         <span class="status-dot"></span>
         <span class="status-text">Disconnected</span>
       </div>
+      <div class="llm-status" id="llmStatus">
+        <span class="llm-indicator" title="LLM Health">🧠</span>
+        <span class="llm-tokens" id="llmTokens">0 tokens</span>
+        <button class="llm-toggle" id="llmToggle" title="Toggle LLM Logs">📡</button>
+      </div>
     </div>
   </header>
+
+  <!-- LLM Log Panel (hidden by default) -->
+  <div class="llm-log-panel" id="llmLogPanel">
+    <div class="llm-log-header">
+      <h3>🔬 Raw LLM API Calls</h3>
+      <button class="llm-log-close" id="llmLogClose">×</button>
+    </div>
+    <div class="llm-log-stats" id="llmLogStats">
+      <span>Calls: <b id="llmCallCount">0</b></span>
+      <span>Tokens In: <b id="llmTokensIn">0</b></span>
+      <span>Tokens Out: <b id="llmTokensOut">0</b></span>
+      <span>Endpoint: <b id="llmEndpoint">-</b></span>
+    </div>
+    <div class="llm-log-entries" id="llmLogEntries"></div>
+  </div>
 
   <main class="layout">
     <!-- Auth Panel -->

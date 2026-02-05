@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
@@ -17,6 +18,8 @@ import pandas as pd
 from .config import CONFIG
 from .llm_client import chat_completion
 from .schemas import PipelineResponse
+
+logger = logging.getLogger("orchestrator")
 
 # Hugging Face integration with timeout protection
 HF_AVAILABLE = False
@@ -1633,6 +1636,58 @@ def reflect(run_id: str, file_path: str | None) -> PipelineResponse:
 
     metric_name = str(ml.get("primaryMetric", "quality"))
     metric_value = float(ml.get("primaryMetricValue", 0.0) or 0.0)
+    
+    # Auto-refinement loop: if accuracy < 90%, try chain-of-thought re-prompting
+    refinement_attempts = state.get("refinement_attempts", 0)
+    max_refinement_attempts = 3
+    refinement_improved = False
+    
+    if metric_name in ("accuracy", "r2") and metric_value < 0.90 and refinement_attempts < max_refinement_attempts:
+        refinement_attempts += 1
+        state["refinement_attempts"] = refinement_attempts
+        
+        # Chain-of-thought refinement prompt
+        cot_prompt = [
+            {"role": "system", "content": "You are Leviathan, an expert ML engineer. Think step-by-step to improve model quality."},
+            {"role": "user", "content": f"""
+The current model achieved {metric_name}={metric_value:.4f} which is below the 90% target.
+
+Dataset: {ingest_meta.get('dataset', 'unknown')}
+Task: {ml.get('task', 'unknown')}
+Model: {ml.get('selectedModel', 'unknown')}
+Sample predictions: {ml.get('samplePredictions', [])[:5]}
+
+Think step-by-step:
+1. What might be causing the low {metric_name}?
+2. What feature engineering could help?
+3. What hyperparameter adjustments would improve results?
+4. Provide a specific action plan.
+
+Respond with a JSON object containing:
+{{"analysis": "your step-by-step analysis", "recommendations": ["action1", "action2"], "confidence": 0.0-1.0}}
+"""}
+        ]
+        
+        try:
+            from .llm_client import chat_completion
+            refinement_response = chat_completion(cot_prompt)
+            
+            # Log the refinement attempt
+            logger.info(f"[REFINEMENT] Attempt {refinement_attempts}: Got LLM response for improvement")
+            
+            # Store refinement insights
+            if "refinement_history" not in state:
+                state["refinement_history"] = []
+            state["refinement_history"].append({
+                "attempt": refinement_attempts,
+                "metric_before": metric_value,
+                "llm_response": refinement_response[:500]
+            })
+            
+            refinement_improved = True
+        except Exception as e:
+            logger.warning(f"[REFINEMENT] Chain-of-thought prompt failed: {e}")
+    
     quality = _quality_label(metric_name, metric_value)
 
     dataset = ingest_meta.get("dataset", "dataset")
@@ -1647,6 +1702,9 @@ def reflect(run_id: str, file_path: str | None) -> PipelineResponse:
 
     if ml.get("refined"):
         insights.append("Auto-refinement was triggered to improve low-quality predictions.")
+    
+    if refinement_improved:
+        insights.append(f"Chain-of-thought refinement attempt {refinement_attempts}/{max_refinement_attempts} completed.")
 
     if ml.get("task") == "classification" and metric_name == "accuracy":
         baseline = float(ml.get("baselineMetric", 0.0) or 0.0)

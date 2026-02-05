@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { config } from './config.js';
-import { streamChatTokens, chatCompletionText } from './llmClient.js';
+import { streamChatTokens, chatCompletionText, llmEvents, getLlmStats } from './llmClient.js';
 
 const parseMessage = (data) => {
   try {
@@ -46,6 +46,19 @@ export const initWebsocket = (server, log) => {
       }
     }
   };
+
+  const broadcastToAll = (type, payload) => {
+    for (const [ws, meta] of clients.entries()) {
+      if (meta.authed) {
+        send(ws, type, 'system', payload);
+      }
+    }
+  };
+
+  // Listen to LLM events and broadcast to all authenticated clients
+  llmEvents.on('llm:log', (logEntry) => {
+    broadcastToAll('llm:log', logEntry);
+  });
 
   wss.on('connection', (ws) => {
     addClient(ws);
@@ -92,12 +105,14 @@ export const initWebsocket = (server, log) => {
           }
         } catch (err) {
           log?.error({ err }, 'chat stream failed');
-          send(ws, 'chat:token', msg.requestId, {
-            token: 'LLM unavailable right now. Please retry shortly.'
-          });
-          send(ws, 'chat:end', msg.requestId, { ok: false, fallback: true });
-          send(ws, 'error', msg.requestId, { message: err.message });
+          // No dummy fallback - show real error to user
+          send(ws, 'chat:end', msg.requestId, { ok: false, error: err.message });
+          send(ws, 'error', msg.requestId, { message: `LLM Error: ${err.message}` });
         }
+      }
+
+      if (msg.type === 'llm:status') {
+        send(ws, 'llm:stats', msg.requestId, getLlmStats());
       }
 
       if (msg.type === 'pipeline:subscribe') {

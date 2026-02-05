@@ -35,6 +35,18 @@ const brandTitle = $('#brandTitle');
 const alertSound = $('#alertSound');
 const logoutBtn = $('#logout');
 
+// LLM Status Panel elements
+const llmStatus = $('#llmStatus');
+const llmTokens = $('#llmTokens');
+const llmToggle = $('#llmToggle');
+const llmLogPanel = $('#llmLogPanel');
+const llmLogClose = $('#llmLogClose');
+const llmLogEntries = $('#llmLogEntries');
+const llmCallCount = $('#llmCallCount');
+const llmTokensIn = $('#llmTokensIn');
+const llmTokensOut = $('#llmTokensOut');
+const llmEndpoint = $('#llmEndpoint');
+
 // ===== STATE =====
 const state = {
   accessToken: localStorage.getItem('accessToken') || '',
@@ -48,7 +60,15 @@ const state = {
   currentChart: 'main',
   chartData: {},
   pipelineRunId: null,
-  autoDismissTimer: null
+  autoDismissTimer: null,
+  llmStats: {
+    totalCalls: 0,
+    totalTokensIn: 0,
+    totalTokensOut: 0,
+    lastEndpoint: null,
+    healthy: true
+  },
+  llmLogVisible: false
 };
 
 // ===== UTILITIES =====
@@ -198,6 +218,104 @@ const handleWsMessage = (msg) => {
     case 'swarm:log':
       logToConsole(msg.payload.level, msg.payload.stage, msg.payload.message);
       break;
+    case 'llm:log':
+      handleLlmLog(msg.payload);
+      break;
+    case 'llm:stats':
+      updateLlmStats(msg.payload);
+      break;
+  }
+};
+
+// ===== LLM LOG HANDLING =====
+const handleLlmLog = (logEntry) => {
+  // Update stats
+  if (logEntry.type === 'RESPONSE' || logEntry.type === 'STREAM_END') {
+    state.llmStats.totalCalls++;
+    state.llmStats.totalTokensIn += logEntry.tokensIn || 0;
+    state.llmStats.totalTokensOut += logEntry.tokensOut || logEntry.tokenCount || 0;
+    state.llmStats.lastEndpoint = logEntry.endpoint || state.llmStats.lastEndpoint;
+    state.llmStats.healthy = true;
+    updateLlmUI();
+  } else if (logEntry.type === 'ERROR') {
+    state.llmStats.healthy = false;
+    updateLlmUI();
+  } else if (logEntry.type === 'REQUEST') {
+    state.llmStats.lastEndpoint = logEntry.endpoint;
+    updateLlmUI();
+  }
+  
+  // Add log entry to panel
+  addLlmLogEntry(logEntry);
+  
+  // Also log to swarm console
+  const level = logEntry.type === 'ERROR' ? 'error' : (logEntry.type === 'RESPONSE' ? 'success' : 'info');
+  const preview = logEntry.responsePreview || logEntry.promptPreview || logEntry.error || '';
+  logToConsole(level, `LLM:${logEntry.type}`, preview.slice(0, 100) + (preview.length > 100 ? '...' : ''));
+};
+
+const addLlmLogEntry = (logEntry) => {
+  if (!llmLogEntries) return;
+  
+  const entry = document.createElement('div');
+  entry.className = `llm-log-entry ${logEntry.type}`;
+  
+  const time = logEntry.ts ? new Date(logEntry.ts).toLocaleTimeString() : new Date().toLocaleTimeString();
+  const details = [];
+  
+  if (logEntry.model) details.push(`model=${logEntry.model}`);
+  if (logEntry.tokensIn) details.push(`in=${logEntry.tokensIn}`);
+  if (logEntry.tokensOut) details.push(`out=${logEntry.tokensOut}`);
+  if (logEntry.tokenCount) details.push(`tokens=${logEntry.tokenCount}`);
+  if (logEntry.latencyMs) details.push(`${logEntry.latencyMs}ms`);
+  if (logEntry.error) details.push(`err: ${logEntry.error.slice(0, 50)}`);
+  
+  const preview = logEntry.responsePreview || logEntry.promptPreview || '';
+  
+  entry.innerHTML = `
+    <span class="log-time">${time}</span>
+    <span class="log-type">${logEntry.type}</span>
+    ${details.length ? `<span>${details.join(' | ')}</span>` : ''}
+    ${preview ? `<div style="margin-top:4px;opacity:0.8">${escapeHtml(preview.slice(0, 150))}...</div>` : ''}
+  `;
+  
+  llmLogEntries.prepend(entry);
+  
+  // Limit entries
+  while (llmLogEntries.children.length > 50) {
+    llmLogEntries.removeChild(llmLogEntries.lastChild);
+  }
+};
+
+const updateLlmStats = (stats) => {
+  state.llmStats = { ...state.llmStats, ...stats };
+  updateLlmUI();
+};
+
+const updateLlmUI = () => {
+  if (llmTokens) {
+    const total = state.llmStats.totalTokensIn + state.llmStats.totalTokensOut;
+    llmTokens.textContent = `${total.toLocaleString()} tok`;
+  }
+  
+  if (llmStatus) {
+    llmStatus.classList.toggle('healthy', state.llmStats.healthy);
+    llmStatus.classList.toggle('error', !state.llmStats.healthy);
+  }
+  
+  if (llmCallCount) llmCallCount.textContent = state.llmStats.totalCalls;
+  if (llmTokensIn) llmTokensIn.textContent = state.llmStats.totalTokensIn.toLocaleString();
+  if (llmTokensOut) llmTokensOut.textContent = state.llmStats.totalTokensOut.toLocaleString();
+  if (llmEndpoint && state.llmStats.lastEndpoint) {
+    const url = state.llmStats.lastEndpoint;
+    llmEndpoint.textContent = url.length > 30 ? '...' + url.slice(-30) : url;
+  }
+};
+
+const toggleLlmLogPanel = () => {
+  state.llmLogVisible = !state.llmLogVisible;
+  if (llmLogPanel) {
+    llmLogPanel.classList.toggle('active', state.llmLogVisible);
   }
 };
 
@@ -768,6 +886,10 @@ const boot = () => {
   logoutBtn.onclick = logout;
   modalClose.onclick = hideAlertModal;
   dismissAlert.onclick = hideAlertModal;
+  
+  // LLM log panel controls
+  if (llmToggle) llmToggle.onclick = toggleLlmLogPanel;
+  if (llmLogClose) llmLogClose.onclick = toggleLlmLogPanel;
   
   // Check auth
   if (state.accessToken) {
