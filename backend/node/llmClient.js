@@ -36,7 +36,7 @@ const fetchChatOnce = async (payload, useFallback = false) => {
   const baseUrl = useFallback && config.llmFallback.baseUrl ? config.llmFallback.baseUrl : config.llm.baseUrl;
   const apiKey = useFallback && config.llmFallback.apiKey ? config.llmFallback.apiKey : config.llm.apiKey;
   if (!baseUrl) throw new Error('LLM base URL not configured');
-  const url = `${baseUrl.replace(/\/$/, '')}/v1/chat/completions`;
+  const url = `${baseUrl.replace(/\/$/, '')}/api/v1/chat/completions`;
   
   // Log request
   llmStats.totalCalls++;

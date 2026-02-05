@@ -53,7 +53,7 @@ def _headers(api_key: str | None) -> Dict[str, str]:
 def _post_chat_once(base_url: str, api_key: str, payload: Dict[str, Any], is_fallback: bool = False) -> requests.Response:
     if not base_url:
         raise RuntimeError("LLM base URL not configured")
-    url = f"{base_url.rstrip('/')}/v1/chat/completions"
+    url = f"{base_url.rstrip('/')}/api/v1/chat/completions"
     
     llm_stats["total_calls"] += 1
     llm_stats["last_call_time"] = datetime.utcnow().isoformat() + "Z"
