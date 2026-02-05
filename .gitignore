@@ -63,3 +63,10 @@ rust/leviathan_accel/Cargo.lock
 *.tmp
 *.temp
 .cache/
+
+# Large test datasets
+data/test-datasets/
+data/uploads/*.csv
+data/uploads/**/*.jpg
+*.db-shm
+*.db-wal
