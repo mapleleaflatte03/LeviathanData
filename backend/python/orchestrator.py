@@ -15,6 +15,27 @@ from typing import Any, Dict, Iterable, List, Tuple, Optional, Callable, TypeVar
 import numpy as np
 import pandas as pd
 
+# Enhanced ML with sklearn
+SKLEARN_AVAILABLE = False
+XGBOOST_AVAILABLE = False
+try:
+    from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.svm import LinearSVC
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.naive_bayes import MultinomialNB as SklearnNB
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    pass
+
+try:
+    import xgboost as xgb
+    XGBOOST_AVAILABLE = True
+except ImportError:
+    pass
+
 from .config import CONFIG
 from .llm_client import chat_completion
 from .schemas import PipelineResponse
@@ -83,7 +104,7 @@ TARGET_HINTS = [
     "classlabel",
 ]
 MAX_TABULAR_ROWS = 60000
-MAX_TEXT_ROWS = 12000
+MAX_TEXT_ROWS = 50000
 SEED = 42
 KNOWN_DATASETS = {
     "air-quality",
@@ -441,6 +462,16 @@ def _detect_target_column(df: pd.DataFrame, dataset_name: str) -> str:
 
 
 def _choose_text_column(df: pd.DataFrame, target_col: str) -> str | None:
+    """Choose a text column for text classification.
+    
+    Only use text classification if:
+    - There's a text column with very long text (avg >= 100 chars)
+    - There are few numeric features (< 5), so tabular approach won't work well
+    """
+    # Count numeric columns - if many, prefer tabular approach
+    numeric_cols = df.select_dtypes(include=[np.number, 'bool']).columns
+    num_predictive_numeric = len([c for c in numeric_cols if c != target_col])
+    
     candidates: List[Tuple[str, float]] = []
     for col in df.columns:
         if col == target_col:
@@ -451,12 +482,83 @@ def _choose_text_column(df: pd.DataFrame, target_col: str) -> str | None:
         if sample.empty:
             continue
         avg_len = float(sample.str.len().mean())
-        if avg_len >= 25:
+        # Require longer text (100+ chars) for text classification
+        if avg_len >= 100:
             candidates.append((col, avg_len))
+    
     if not candidates:
         return None
+    
+    # Only use text classification if few numeric features
+    # (otherwise tabular approach is likely better)
+    if num_predictive_numeric >= 4:
+        return None
+    
     candidates.sort(key=lambda item: item[1], reverse=True)
     return candidates[0][0]
+
+
+def _dataset_specific_feature_engineering(df: pd.DataFrame, dataset_name: str, target_col: str) -> pd.DataFrame:
+    """Apply dataset-specific feature engineering for better accuracy."""
+    work = df.copy()
+    
+    if dataset_name == "titanic":
+        # Title extraction from Name
+        if 'Name' in work.columns:
+            work['Title'] = work['Name'].str.extract(r' ([A-Za-z]+)\.', expand=False)
+            work['Title'] = work['Title'].replace(['Lady', 'Countess', 'Capt', 'Col', 'Don', 'Dr', 
+                                                    'Major', 'Rev', 'Sir', 'Jonkheer', 'Dona'], 'Rare')
+            work['Title'] = work['Title'].replace(['Mlle', 'Ms'], 'Miss')
+            work['Title'] = work['Title'].replace('Mme', 'Mrs')
+            work['Title'] = work['Title'].fillna('Unknown')
+        
+        # Family size
+        if 'SibSp' in work.columns and 'Parch' in work.columns:
+            work['FamilySize'] = work['SibSp'] + work['Parch'] + 1
+            work['IsAlone'] = (work['FamilySize'] == 1).astype(int)
+        
+        # Age imputation by Pclass/Sex
+        if 'Age' in work.columns:
+            if 'Pclass' in work.columns and 'Sex' in work.columns:
+                for (pclass, sex), group in work.groupby(['Pclass', 'Sex']):
+                    median_age = group['Age'].median()
+                    work.loc[(work['Pclass'] == pclass) & (work['Sex'] == sex) & (work['Age'].isna()), 'Age'] = median_age
+            work['Age'] = work['Age'].fillna(work['Age'].median())
+            work['AgeBin'] = pd.cut(work['Age'], bins=[0, 12, 20, 40, 60, 100], 
+                                     labels=['Child', 'Teen', 'Adult', 'Middle', 'Senior'])
+        
+        # Fare binning
+        if 'Fare' in work.columns:
+            work['Fare'] = work['Fare'].fillna(work['Fare'].median())
+            work['FareBin'] = pd.qcut(work['Fare'].clip(lower=0.01), q=4, 
+                                       labels=['Low', 'Medium', 'High', 'VeryHigh'], duplicates='drop')
+        
+        # Cabin deck
+        if 'Cabin' in work.columns:
+            work['Deck'] = work['Cabin'].str[0].fillna('U')
+            work['HasCabin'] = work['Cabin'].notna().astype(int)
+        
+        # Drop less useful columns
+        cols_to_drop = ['Name', 'Ticket', 'Cabin', 'PassengerId']
+        for col in cols_to_drop:
+            if col in work.columns and col != target_col:
+                work = work.drop(columns=[col])
+    
+    elif dataset_name == "creditcardfraud" or dataset_name == "creditcard":
+        # Credit card fraud - mostly ready, but scale Amount
+        if 'Amount' in work.columns:
+            work['Amount_log'] = np.log1p(work['Amount'])
+        if 'Time' in work.columns:
+            work['Time_hour'] = (work['Time'] / 3600) % 24
+    
+    elif dataset_name == "house-prices":
+        # House prices - log transform target and key features
+        numeric_cols = work.select_dtypes(include=[np.number]).columns
+        for col in numeric_cols:
+            if col != target_col and work[col].min() >= 0:
+                work[f'{col}_log'] = np.log1p(work[col])
+    
+    return work
 
 
 def _prepare_tabular_matrix(df: pd.DataFrame, target_col: str) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
@@ -538,6 +640,12 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
     cleaned = df[[text_col, target_col]].dropna().copy()
     cleaned[text_col] = cleaned[text_col].astype(str)
     cleaned[target_col] = cleaned[target_col].astype(str)
+    
+    # Aggressive text cleanup for better accuracy
+    cleaned[text_col] = cleaned[text_col].str.replace(r'<[^>]+>', ' ', regex=True)  # HTML tags
+    cleaned[text_col] = cleaned[text_col].str.replace(r'[^a-zA-Z\s]', ' ', regex=True)  # Keep only letters
+    cleaned[text_col] = cleaned[text_col].str.replace(r'\s+', ' ', regex=True)  # Multiple spaces
+    cleaned[text_col] = cleaned[text_col].str.lower().str.strip()  # Lowercase
 
     if len(cleaned) > MAX_TEXT_ROWS:
         cleaned = cleaned.sample(n=MAX_TEXT_ROWS, random_state=SEED)
@@ -596,16 +704,81 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
     baseline_pred = np.array([majority_label] * len(y_test), dtype=object)
     baseline_acc = _accuracy(y_test, baseline_pred)
 
-    model = _train_text_nb(train_text, y_train)
-    pred_nb = _predict_text_nb(model, test_text)
-    nb_acc = _accuracy(y_test, pred_nb)
-
     refined = False
-    selected_name = "multinomial_nb"
-    selected_pred = pred_nb
-    selected_acc = nb_acc
+    selected_name = "majority_baseline"
+    selected_pred = baseline_pred
+    selected_acc = baseline_acc
+    model_candidates = ["majority_baseline"]
 
-    if selected_acc < 0.7:
+    # Try sklearn FIRST (much faster than custom NB)
+    if SKLEARN_AVAILABLE:
+        try:
+            # TF-IDF + MultinomialNB (fast sklearn implementation)
+            tfidf_nb = Pipeline([
+                ('tfidf', TfidfVectorizer(max_features=30000, ngram_range=(1, 3), min_df=2, sublinear_tf=True)),
+                ('clf', SklearnNB(alpha=0.1))
+            ])
+            tfidf_nb.fit(train_text, y_train)
+            sklearn_pred = tfidf_nb.predict(test_text)
+            sklearn_acc = _accuracy(y_test, sklearn_pred.astype(object))
+            model_candidates.append("tfidf_multinomial_nb")
+            
+            if sklearn_acc > selected_acc:
+                selected_pred = sklearn_pred.astype(object)
+                selected_acc = sklearn_acc
+                selected_name = "tfidf_multinomial_nb"
+                refined = True
+            
+            # TF-IDF + LogisticRegression (only for smaller datasets - slow on large text)
+            if len(train_text) <= 40000:
+                tfidf_lr = Pipeline([
+                    ('tfidf', TfidfVectorizer(max_features=30000, ngram_range=(1, 3), min_df=2, sublinear_tf=True)),
+                    ('clf', LogisticRegression(max_iter=1000, C=1.0, random_state=42, solver='lbfgs'))
+                ])
+                tfidf_lr.fit(train_text, y_train)
+                lr_pred = tfidf_lr.predict(test_text)
+                lr_acc = _accuracy(y_test, lr_pred.astype(object))
+                model_candidates.append("tfidf_logistic_regression")
+                
+                if lr_acc > selected_acc:
+                    selected_pred = lr_pred.astype(object)
+                    selected_acc = lr_acc
+                    selected_name = "tfidf_logistic_regression"
+                    refined = True
+            
+            # Try LinearSVC which often beats LR for text
+            if selected_acc < 0.95 and len(train_text) <= 40000:
+                tfidf_svc = Pipeline([
+                    ('tfidf', TfidfVectorizer(max_features=30000, ngram_range=(1, 3), min_df=2, sublinear_tf=True)),
+                    ('clf', LinearSVC(C=1.0, max_iter=2000, random_state=42))
+                ])
+                tfidf_svc.fit(train_text, y_train)
+                svc_pred = tfidf_svc.predict(test_text)
+                svc_acc = _accuracy(y_test, svc_pred.astype(object))
+                model_candidates.append("tfidf_linear_svc")
+                
+                if svc_acc > selected_acc:
+                    selected_pred = svc_pred.astype(object)
+                    selected_acc = svc_acc
+                    selected_name = "tfidf_linear_svc"
+                    refined = True
+        except Exception as e:
+            logger.debug(f"sklearn text classifier failed: {e}")
+    
+    # Only use slow custom NB as fallback when sklearn unavailable
+    if not SKLEARN_AVAILABLE or selected_acc < 0.6:
+        model = _train_text_nb(train_text, y_train)
+        pred_nb = _predict_text_nb(model, test_text)
+        nb_acc = _accuracy(y_test, pred_nb)
+        model_candidates.append("multinomial_nb")
+        
+        if nb_acc > selected_acc:
+            selected_pred = pred_nb
+            selected_acc = nb_acc
+            selected_name = "multinomial_nb"
+
+    # Skip slow custom refined NB if sklearn gave good results
+    if not SKLEARN_AVAILABLE and selected_acc < 0.7:
         refined = True
         rare_cutoff = 3
         filtered_train = []
@@ -619,6 +792,7 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
             model_refined = _train_text_nb(filtered_train, filtered_labels, max_features=15000, alpha=0.7)
             pred_refined = _predict_text_nb(model_refined, test_text)
             refined_acc = _accuracy(y_test, pred_refined)
+            model_candidates.append("multinomial_nb_refined")
             if refined_acc >= selected_acc:
                 selected_name = "multinomial_nb_refined"
                 selected_pred = pred_refined
@@ -642,7 +816,7 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
         "task": "classification",
         "targetColumn": str(target_col),
         "textColumn": str(text_col),
-        "modelCandidates": ["majority_baseline", "multinomial_nb", "multinomial_nb_refined"],
+        "modelCandidates": model_candidates,
         "selectedModel": selected_name,
         "baselineMetric": round(float(baseline_acc), 4),
         "primaryMetric": "accuracy",
@@ -693,12 +867,97 @@ def _run_tabular_model(x: np.ndarray, y: np.ndarray, task: str, target_col: str)
         best_pred = nb_pred
         best_acc = nb_acc
         refined = False
+        model_candidates = ["majority_baseline", "gaussian_nb"]
+
+        # Try sklearn classifiers for better accuracy
+        if SKLEARN_AVAILABLE:
+            try:
+                scaler = StandardScaler()
+                x_train_scaled = scaler.fit_transform(x_train)
+                x_test_scaled = scaler.transform(x_test)
+                
+                # RandomForest
+                rf = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+                rf.fit(x_train_scaled, y_train)
+                rf_pred = rf.predict(x_test_scaled).astype(str)
+                rf_acc = _accuracy(y_test, rf_pred)
+                model_candidates.append("random_forest")
+                if rf_acc > best_acc:
+                    best_name = "random_forest"
+                    best_pred = rf_pred
+                    best_acc = rf_acc
+                    refined = True
+                
+                # LogisticRegression
+                lr = LogisticRegression(max_iter=1000, random_state=42, solver='lbfgs')
+                lr.fit(x_train_scaled, y_train)
+                lr_pred = lr.predict(x_test_scaled).astype(str)
+                lr_acc = _accuracy(y_test, lr_pred)
+                model_candidates.append("logistic_regression")
+                if lr_acc > best_acc:
+                    best_name = "logistic_regression"
+                    best_pred = lr_pred
+                    best_acc = lr_acc
+                    refined = True
+                
+                # GradientBoosting for hard cases
+                if best_acc < 0.85:
+                    gb = GradientBoostingClassifier(n_estimators=100, max_depth=5, random_state=42)
+                    gb.fit(x_train_scaled, y_train)
+                    gb_pred = gb.predict(x_test_scaled).astype(str)
+                    gb_acc = _accuracy(y_test, gb_pred)
+                    model_candidates.append("gradient_boosting")
+                    if gb_acc > best_acc:
+                        best_name = "gradient_boosting"
+                        best_pred = gb_pred
+                        best_acc = gb_acc
+                        refined = True
+            except Exception as e:
+                logger.debug(f"sklearn classifier failed: {e}")
+
+        # Try XGBoost for best performance
+        if XGBOOST_AVAILABLE and best_acc < 0.95:
+            try:
+                scaler = StandardScaler()
+                x_train_scaled = scaler.fit_transform(x_train)
+                x_test_scaled = scaler.transform(x_test)
+                
+                # Convert labels to numeric for XGBoost
+                unique_labels = np.unique(y_train)
+                label_to_idx = {label: idx for idx, label in enumerate(unique_labels)}
+                y_train_num = np.array([label_to_idx[l] for l in y_train])
+                
+                # XGBoost with good hyperparameters
+                xgb_clf = xgb.XGBClassifier(
+                    n_estimators=200,
+                    max_depth=6,
+                    learning_rate=0.1,
+                    subsample=0.8,
+                    colsample_bytree=0.8,
+                    random_state=42,
+                    use_label_encoder=False,
+                    eval_metric='logloss',
+                    verbosity=0
+                )
+                xgb_clf.fit(x_train_scaled, y_train_num)
+                xgb_pred_num = xgb_clf.predict(x_test_scaled)
+                xgb_pred = np.array([unique_labels[i] for i in xgb_pred_num], dtype=str)
+                xgb_acc = _accuracy(y_test, xgb_pred)
+                model_candidates.append("xgboost")
+                if xgb_acc > best_acc:
+                    best_name = "xgboost"
+                    best_pred = xgb_pred
+                    best_acc = xgb_acc
+                    refined = True
+            except Exception as e:
+                logger.debug(f"XGBoost failed: {e}")
 
         if best_acc < 0.7:
             refined = True
             centroid_model = _train_centroid_classifier(x_train, y_train)
             centroid_pred = _predict_centroid_classifier(centroid_model, x_test).astype(str)
             centroid_acc = _accuracy(y_test, centroid_pred)
+            model_candidates.append("centroid_classifier")
             if centroid_acc >= best_acc:
                 best_name = "centroid_classifier"
                 best_pred = centroid_pred
@@ -716,7 +975,7 @@ def _run_tabular_model(x: np.ndarray, y: np.ndarray, task: str, target_col: str)
         return {
             "task": "classification",
             "targetColumn": str(target_col),
-            "modelCandidates": ["majority_baseline", "gaussian_nb", "centroid_classifier"],
+            "modelCandidates": model_candidates,
             "selectedModel": best_name,
             "baselineMetric": round(float(baseline_acc), 4),
             "primaryMetric": "accuracy",
@@ -1306,6 +1565,9 @@ def _analyze_tabular(path: Path, dataset_name: str) -> Dict[str, Any]:
 
     if len(frame) > MAX_TABULAR_ROWS:
         frame = frame.sample(n=MAX_TABULAR_ROWS, random_state=SEED)
+
+    # Apply dataset-specific feature engineering
+    frame = _dataset_specific_feature_engineering(frame, dataset_name, target_col)
 
     text_col = _choose_text_column(frame, target_col)
 
