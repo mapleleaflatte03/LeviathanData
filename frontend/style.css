@@ -1711,6 +1711,228 @@ button:active { transform: translateY(0); }
   transform: translateY(0);
 }
 
+/* OpenClaw OSINT Bar */
+.openclaw-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+  background: linear-gradient(135deg, rgba(0, 136, 170, 0.15), rgba(0, 68, 102, 0.2));
+  border: 1px solid var(--tide-500);
+  border-radius: 12px;
+  margin-bottom: 15px;
+}
+
+.openclaw-label {
+  font-size: 0.85rem;
+  color: var(--tide-400);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#openclawInput {
+  flex: 1;
+  background: var(--abyss-800);
+  border: 1px solid var(--abyss-600);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--ghost);
+  font-size: 0.9rem;
+}
+
+#openclawInput:focus {
+  outline: none;
+  border-color: var(--tide-500);
+  box-shadow: 0 0 8px rgba(0, 136, 170, 0.3);
+}
+
+.openclaw-action-btn {
+  background: linear-gradient(135deg, #00aa88, #006655);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  cursor: pointer;
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.openclaw-action-btn:hover {
+  background: linear-gradient(135deg, #00cc99, #008866);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 170, 136, 0.4);
+}
+
+.openclaw-action-btn:disabled {
+  background: var(--abyss-600);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.openclaw-action-btn .spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* OpenClaw Progress Panel */
+.openclaw-progress {
+  background: var(--abyss-800);
+  border: 1px solid var(--tide-600);
+  border-radius: 10px;
+  padding: 15px;
+  margin-bottom: 15px;
+  display: none;
+}
+
+.openclaw-progress.active {
+  display: block;
+}
+
+.openclaw-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.openclaw-progress-title {
+  font-weight: 600;
+  color: var(--tide-400);
+}
+
+.openclaw-progress-stage {
+  font-size: 0.85rem;
+  color: var(--ghost);
+  padding: 3px 8px;
+  background: var(--abyss-700);
+  border-radius: 4px;
+}
+
+.openclaw-progress-bar {
+  height: 6px;
+  background: var(--abyss-700);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.openclaw-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00aa88, #00cc99);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+.openclaw-progress-log {
+  max-height: 150px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--ghost);
+  opacity: 0.8;
+}
+
+/* OpenClaw Results Panel */
+.openclaw-results {
+  background: var(--abyss-800);
+  border: 1px solid var(--tide-500);
+  border-radius: 12px;
+  padding: 15px;
+  margin-top: 15px;
+  display: none;
+}
+
+.openclaw-results.active {
+  display: block;
+}
+
+.openclaw-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--abyss-600);
+}
+
+.openclaw-results-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--tide-400);
+}
+
+.openclaw-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.openclaw-kpi-card {
+  background: linear-gradient(135deg, var(--abyss-700), var(--abyss-800));
+  border: 1px solid var(--abyss-600);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.openclaw-kpi-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--tide-400);
+}
+
+.openclaw-kpi-label {
+  font-size: 0.75rem;
+  color: var(--ghost);
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+
+.openclaw-download-btns {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.openclaw-download-btn {
+  flex: 1;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.openclaw-download-btn.pdf {
+  background: linear-gradient(135deg, #cc3333, #aa2222);
+  color: white;
+}
+
+.openclaw-download-btn.html {
+  background: linear-gradient(135deg, #3366cc, #2255aa);
+  color: white;
+}
+
+.openclaw-download-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
 .chat-input-enhanced {
   display: flex;
   gap: 8px;

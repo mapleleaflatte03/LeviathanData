@@ -216,6 +216,18 @@ const handleWsMessage = (msg) => {
     case 'hunt:error':
       handleHuntError(msg.payload);
       break;
+    case 'openclaw:progress':
+      handleOpenClawProgress(msg.payload);
+      break;
+    case 'openclaw:token':
+      handleChatToken(msg.payload.token);
+      break;
+    case 'openclaw:complete':
+      handleOpenClawComplete(msg.payload);
+      break;
+    case 'openclaw:error':
+      handleOpenClawError(msg.payload);
+      break;
     case 'pipeline:status':
       updatePipeline(msg.payload);
       break;
@@ -279,6 +291,189 @@ const handleHuntError = (payload) => {
   } else {
     showToast(`Hunt failed: ${error}`, 'error');
   }
+};
+
+// ===== OPENCLAW HANDLERS =====
+const openclawState = {
+  analyzing: false,
+  company: '',
+  logs: []
+};
+
+const handleOpenClawProgress = (payload) => {
+  const { stage, message, percent } = payload;
+  
+  const progressPanel = $('#openclawProgress');
+  const stageEl = $('#openclawStage');
+  const fillEl = $('#openclawProgressFill');
+  const logEl = $('#openclawLog');
+  
+  if (progressPanel) progressPanel.classList.add('active');
+  if (stageEl) stageEl.textContent = stage || 'PROCESSING';
+  if (fillEl && percent) fillEl.style.width = `${percent}%`;
+  
+  if (message && logEl) {
+    openclawState.logs.push(message);
+    logEl.innerHTML = openclawState.logs.slice(-10).map(l => `<div>${l}</div>`).join('');
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  
+  logToConsole('hunt', stage || 'OPENCLAW', message || 'Analyzing...');
+};
+
+const handleOpenClawComplete = (payload) => {
+  openclawState.analyzing = false;
+  finishStreaming();
+  
+  const { 
+    company, 
+    osintToolsUsed, 
+    osintItemsCollected, 
+    kpis, 
+    analysis,
+    dashboardData,
+    reportPdfPath,
+    reportHtmlPath 
+  } = payload;
+  
+  // Hide progress, show results
+  const progressPanel = $('#openclawProgress');
+  const resultsPanel = $('#openclawResults');
+  const companyEl = $('#openclawCompany');
+  const kpisEl = $('#openclawKpis');
+  const downloadsEl = $('#openclawDownloads');
+  const openclawBtn = $('#openclawBtn');
+  
+  if (progressPanel) progressPanel.classList.remove('active');
+  if (resultsPanel) resultsPanel.classList.add('active');
+  if (companyEl) companyEl.textContent = company || openclawState.company;
+  
+  // Reset button
+  if (openclawBtn) {
+    openclawBtn.disabled = false;
+    openclawBtn.innerHTML = '<span class="btn-text">🚀 Phân tích OSINT</span>';
+  }
+  
+  // Render KPIs
+  if (kpisEl && kpis) {
+    const kpiCards = [
+      { key: 'osint_coverage_score', label: 'Độ phủ OSINT', suffix: '%' },
+      { key: 'tools_executed', label: 'Tools đã chạy', suffix: '' },
+      { key: 'transparency_score', label: 'Độ minh bạch', suffix: '%' },
+      { key: 'info_leak_risk', label: 'Rủi ro rò rỉ', suffix: '' }
+    ];
+    
+    kpisEl.innerHTML = kpiCards.map(k => `
+      <div class="openclaw-kpi-card">
+        <div class="openclaw-kpi-value">${kpis[k.key] || 0}${k.suffix}</div>
+        <div class="openclaw-kpi-label">${k.label}</div>
+      </div>
+    `).join('');
+  }
+  
+  // Render download buttons
+  if (downloadsEl) {
+    let btns = '';
+    if (reportPdfPath) {
+      btns += `<button class="openclaw-download-btn pdf" onclick="window.open('/api/reports/${reportPdfPath.split('/').pop()}', '_blank')">📄 PDF Report</button>`;
+    }
+    if (reportHtmlPath) {
+      btns += `<button class="openclaw-download-btn html" onclick="window.open('/api/reports/${reportHtmlPath.split('/').pop()}', '_blank')">🌐 HTML Report</button>`;
+    }
+    downloadsEl.innerHTML = btns || '<span style="color: var(--ghost); opacity: 0.7;">Reports đang được tạo...</span>';
+  }
+  
+  // Display analysis in chat
+  if (analysis) {
+    appendChat('bot', analysis);
+    state.chatMessages.push({ role: 'assistant', content: analysis });
+  }
+  
+  // Update chart with dashboard data
+  if (dashboardData?.charts) {
+    const chartKeys = Object.keys(dashboardData.charts);
+    if (chartKeys.length > 0) {
+      updateChartData(dashboardData.charts[chartKeys[0]]);
+    }
+  }
+  
+  logToConsole('success', 'OPENCLAW', `Phân tích hoàn tất: ${company} - ${osintItemsCollected || 0} items, ${osintToolsUsed?.length || 0} tools`);
+  showToast(`OpenClaw: Phân tích ${company} hoàn tất!`, 'success');
+};
+
+const handleOpenClawError = (payload) => {
+  openclawState.analyzing = false;
+  finishStreaming();
+  
+  const { error, company } = payload;
+  const progressPanel = $('#openclawProgress');
+  const openclawBtn = $('#openclawBtn');
+  
+  if (progressPanel) progressPanel.classList.remove('active');
+  if (openclawBtn) {
+    openclawBtn.disabled = false;
+    openclawBtn.innerHTML = '<span class="btn-text">🚀 Phân tích OSINT</span>';
+  }
+  
+  logToConsole('error', 'OPENCLAW', error || 'Analysis failed');
+  showToast(`OpenClaw error: ${error}`, 'error');
+};
+
+const startOpenClawAnalysis = () => {
+  const input = $('#openclawInput');
+  const companyName = input?.value?.trim();
+  
+  if (!companyName) {
+    showToast('Vui lòng nhập tên công ty', 'warning');
+    return;
+  }
+  
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+    showToast('WebSocket chưa kết nối', 'error');
+    return;
+  }
+  
+  openclawState.analyzing = true;
+  openclawState.company = companyName;
+  openclawState.logs = [];
+  
+  // Update UI
+  const openclawBtn = $('#openclawBtn');
+  const progressPanel = $('#openclawProgress');
+  const resultsPanel = $('#openclawResults');
+  const fillEl = $('#openclawProgressFill');
+  const logEl = $('#openclawLog');
+  
+  if (openclawBtn) {
+    openclawBtn.disabled = true;
+    openclawBtn.innerHTML = '<div class="spinner"></div> Đang phân tích...';
+  }
+  if (progressPanel) progressPanel.classList.add('active');
+  if (resultsPanel) resultsPanel.classList.remove('active');
+  if (fillEl) fillEl.style.width = '5%';
+  if (logEl) logEl.innerHTML = '';
+  
+  // Show in chat
+  appendChat('user', `Phân tích OSINT: ${companyName}`);
+  state.chatMessages.push({ role: 'user', content: `Phân tích OSINT: ${companyName}` });
+  
+  typingIndicator.classList.add('active');
+  activateTentacles();
+  intensifyEye();
+  
+  // Send WebSocket request
+  state.ws.send(JSON.stringify({
+    type: 'openclaw:analyze',
+    requestId: crypto.randomUUID(),
+    payload: {
+      company_name: companyName,
+      companyName: companyName,
+      language: state.language,
+      prompt: `Phân tích công ty ${companyName}`
+    }
+  }));
+  
+  logToConsole('hunt', 'OPENCLAW', `Bắt đầu phân tích OSINT: ${companyName}`);
 };
 
 // ===== LLM LOG HANDLING =====
@@ -1463,6 +1658,12 @@ const boot = () => {
   const huntBtn = $('#huntBtn');
   if (huntBtn) {
     huntBtn.onclick = startHunt;
+  }
+  
+  // OpenClaw button listener
+  const openclawBtn = $('#openclawBtn');
+  if (openclawBtn) {
+    openclawBtn.onclick = startOpenClawAnalysis;
   }
   
   $('#loginForm').onsubmit = (e) => {

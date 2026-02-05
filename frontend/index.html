@@ -263,10 +263,36 @@
           </h3>
           <div class="hunt-suggestions" id="huntSuggestions">
             <span class="suggestion-label">Săn dữ liệu nhanh:</span>
-            <button class="hunt-btn" data-hunt="vn-stock">📈 Chứng khoán VN</button>
-            <button class="hunt-btn" data-hunt="vn-news">📰 Tin tức VN</button>
-            <button class="hunt-btn" data-hunt="vn-gdp">🌍 GDP Việt Nam</button>
-            <button class="hunt-btn" data-hunt="vn-sentiment">💬 Sentiment VN</button>
+            <button class="hunt-btn" data-hunt="vn-stock">📈 Cổ phiếu VN/Global</button>
+            <button class="hunt-btn" data-hunt="vn-news">📰 Tin tức bất kỳ</button>
+            <button class="hunt-btn" data-hunt="vn-gdp">🌍 GDP toàn cầu</button>
+            <button class="hunt-btn" data-hunt="vn-sentiment">💬 Sentiment</button>
+          </div>
+          <div class="openclaw-bar" id="openclawBar">
+            <span class="openclaw-label">🔍 OSINT Phân tích:</span>
+            <input type="text" id="openclawInput" placeholder="Nhập tên công ty (VD: VinGroup, FPT, MWG)..." />
+            <button id="openclawBtn" class="openclaw-action-btn" title="Phân tích OSINT Full-Stack">
+              <span class="btn-text">🚀 Phân tích OSINT</span>
+            </button>
+          </div>
+          <!-- OpenClaw Progress Panel -->
+          <div class="openclaw-progress" id="openclawProgress">
+            <div class="openclaw-progress-header">
+              <span class="openclaw-progress-title">🔍 OpenClaw đang phân tích...</span>
+              <span class="openclaw-progress-stage" id="openclawStage">INIT</span>
+            </div>
+            <div class="openclaw-progress-bar">
+              <div class="openclaw-progress-fill" id="openclawProgressFill"></div>
+            </div>
+            <div class="openclaw-progress-log" id="openclawLog"></div>
+          </div>
+          <!-- OpenClaw Results Panel -->
+          <div class="openclaw-results" id="openclawResults">
+            <div class="openclaw-results-header">
+              <span class="openclaw-results-title">📊 Kết quả OSINT: <span id="openclawCompany"></span></span>
+            </div>
+            <div class="openclaw-kpi-grid" id="openclawKpis"></div>
+            <div class="openclaw-download-btns" id="openclawDownloads"></div>
           </div>
           <div class="chat" id="chatLog">
             <div class="chat-entry bot">

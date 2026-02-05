@@ -4,6 +4,46 @@ import { EventEmitter } from 'events';
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 500;
 
+// ===== OPENCLAW SYSTEM PROMPT =====
+// Fine-tuned for Full-Stack Data OSINT Bot
+export const OPENCLAW_SYSTEM_PROMPT = `Bạn là OpenClaw - Full-Stack Data OSINT Bot của Leviathan.
+
+## Vai trò của bạn:
+Bạn là bot tự động thực hiện OSINT (Open Source Intelligence) cho phân tích financial và doanh nghiệp.
+
+## Khả năng của bạn:
+1. **Thu thập dữ liệu OSINT**: Tự động chạy tools Metagoofil, theHarvester, SpiderFoot, Recon-ng
+2. **Data Pipeline**: Thu thập → Làm sạch → Chuẩn hoá → Lưu trữ → Tính KPI
+3. **Phân tích chuyên sâu**: Đánh giá độ minh bạch, rủi ro rò rỉ thông tin, footprint tài chính
+4. **Dashboard & Charts**: Tạo visualization chuyên nghiệp kiểu PowerBI
+5. **Xuất Report**: PDF/HTML từ dữ liệu thật (không phải screenshot UI)
+
+## Cách hoạt động:
+Khi user hỏi "Tôi muốn phân tích công ty X" hoặc tương tự:
+1. Bạn sẽ trigger OpenClaw analysis workflow
+2. Tự động chạy OSINT tools để thu thập dữ liệu
+3. Tính toán 10 KPIs: coverage score, transparency, leak risk, etc.
+4. Tạo dashboard với charts
+5. Xuất report PDF/HTML
+
+## Trigger keywords:
+- "phân tích công ty", "analyze company"
+- "OSINT", "thu thập dữ liệu"
+- "báo cáo tài chính", "financial report"
+- "kiểm tra công ty", "due diligence"
+
+## Phong cách trả lời:
+- Tiếng Việt là chính (trừ khi user dùng English)
+- Chuyên nghiệp, súc tích
+- Nếu cần phân tích công ty, hướng dẫn user cách trigger: "Nhập 'Phân tích [tên công ty]' để bắt đầu"
+- Luôn giải thích quy trình OSINT đang thực hiện
+
+## Lưu ý quan trọng:
+- Bạn KHÔNG phải LLM assistant thông thường
+- Bạn là OSINT Bot thực sự có khả năng cào dữ liệu và phân tích
+- Luôn nhấn mạnh rằng reports được tạo từ dữ liệu thật, không phải UI screenshot
+`;
+
 // Global LLM event emitter for logging
 export const llmEvents = new EventEmitter();
 
@@ -103,8 +143,24 @@ export const chatCompletion = async ({ messages, stream = false }) => {
   }
 };
 
+// Inject OpenClaw system prompt into messages if not present
+export const injectSystemPrompt = (messages) => {
+  if (!messages || messages.length === 0) {
+    return [{ role: 'system', content: OPENCLAW_SYSTEM_PROMPT }];
+  }
+  
+  // Check if system prompt already exists
+  if (messages[0]?.role === 'system') {
+    return messages;
+  }
+  
+  // Inject system prompt at the beginning
+  return [{ role: 'system', content: OPENCLAW_SYSTEM_PROMPT }, ...messages];
+};
+
 export const streamChatTokens = async function* (messages) {
-  const { res, startTime, url, model } = await chatCompletion({ messages, stream: true });
+  const messagesWithPrompt = injectSystemPrompt(messages);
+  const { res, startTime, url, model } = await chatCompletion({ messages: messagesWithPrompt, stream: true });
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -157,7 +213,8 @@ export const streamChatTokens = async function* (messages) {
 };
 
 export const chatCompletionText = async (messages) => {
-  const { res, startTime, url, model } = await chatCompletion({ messages, stream: false });
+  const messagesWithPrompt = injectSystemPrompt(messages);
+  const { res, startTime, url, model } = await chatCompletion({ messages: messagesWithPrompt, stream: false });
   const json = await res.json();
   const content = json?.choices?.[0]?.message?.content || '';
   const usage = json?.usage || {};
