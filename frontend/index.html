@@ -3,23 +3,62 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Leviathan</title>
+  <title>Leviathan — Autonomous Data Intelligence</title>
   <link rel="stylesheet" href="/style.css" />
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 </head>
 <body>
+  <!-- Animated Background -->
   <div class="ocean-bg"></div>
+  <div class="tentacles" id="tentacles">
+    <div class="tentacle t1"></div>
+    <div class="tentacle t2"></div>
+    <div class="tentacle t3"></div>
+    <div class="tentacle t4"></div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Alert Modal -->
+  <div class="modal-overlay" id="alertModal">
+    <div class="modal alert-modal">
+      <div class="modal-header">
+        <div class="alert-icon pulse-glow">⚠️</div>
+        <h2>Alert</h2>
+        <button class="modal-close" id="modalClose">×</button>
+      </div>
+      <div class="modal-body" id="alertModalBody"></div>
+      <div class="modal-footer">
+        <label><input type="checkbox" id="autoDismiss" /> Auto-dismiss in 10s</label>
+        <button id="dismissAlert">Acknowledge</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header -->
   <header class="topbar">
     <div class="brand">
-      <div class="eye"></div>
+      <div class="eye-container">
+        <div class="eye" id="monsterEye">
+          <div class="pupil"></div>
+        </div>
+      </div>
       <div>
-        <h1>Leviathan</h1>
+        <h1 class="ripple-text" id="brandTitle">Leviathan</h1>
         <p>Autonomous Data Intelligence Platform</p>
       </div>
     </div>
-    <div class="status" id="status">Disconnected</div>
+    <div class="status-group">
+      <div class="status" id="status">
+        <span class="status-dot"></span>
+        <span class="status-text">Disconnected</span>
+      </div>
+    </div>
   </header>
 
   <main class="layout">
+    <!-- Auth Panel -->
     <section class="panel auth" id="authPanel">
       <h2>Enter the Abyss</h2>
       <div class="tabs">
@@ -39,41 +78,164 @@
       <div class="helper" id="authMessage"></div>
     </section>
 
+    <!-- Dashboard Panel -->
     <section class="panel dashboard" id="dashboardPanel">
+      <!-- Quick Actions Bar -->
+      <div class="quick-actions">
+        <button class="action-btn" data-action="auto-eda">
+          <span class="action-icon">📊</span>
+          <span>Auto EDA</span>
+        </button>
+        <button class="action-btn" data-action="classify-images">
+          <span class="action-icon">🖼️</span>
+          <span>Classify Images</span>
+        </button>
+        <button class="action-btn" data-action="spam-detect">
+          <span class="action-icon">📧</span>
+          <span>Spam Detection</span>
+        </button>
+        <button class="action-btn" data-action="time-series">
+          <span class="action-icon">📈</span>
+          <span>Time-Series</span>
+        </button>
+        <button class="action-btn" data-action="anomaly-hunt">
+          <span class="action-icon">🔍</span>
+          <span>Anomaly Hunt</span>
+        </button>
+      </div>
+
       <div class="dashboard-grid">
-        <div class="card">
-          <h3>Swarm Console</h3>
-          <div class="chat" id="chatLog"></div>
+        <!-- Chat Panel -->
+        <div class="card chat-card">
+          <h3>
+            <span class="card-icon">💬</span>
+            Swarm Chat
+          </h3>
+          <div class="chat" id="chatLog">
+            <div class="chat-entry bot">
+              <div class="avatar agent-avatar">
+                <div class="mini-eye"></div>
+              </div>
+              <div class="message">
+                <span class="sender">Leviathan</span>
+                <p>I am awake. How may I assist you today?</p>
+              </div>
+            </div>
+          </div>
+          <div class="typing-indicator" id="typingIndicator">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
           <div class="chat-input">
             <input type="text" id="chatInput" placeholder="Ask Leviathan..." />
-            <button id="chatSend">Send</button>
+            <button id="chatSend">
+              <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
           </div>
         </div>
-        <div class="card">
-          <h3>Ingestion Bay</h3>
-          <form id="uploadForm">
-            <input type="file" name="file" />
-            <button type="submit">Upload + Analyze</button>
-          </form>
-          <div class="pipeline" id="pipelineStatus"></div>
+
+        <!-- Upload Zone -->
+        <div class="card upload-card">
+          <h3>
+            <span class="card-icon">🌊</span>
+            Ingestion Bay
+          </h3>
+          <div class="upload-zone" id="uploadZone">
+            <div class="wave-animation">
+              <div class="wave w1"></div>
+              <div class="wave w2"></div>
+              <div class="wave w3"></div>
+            </div>
+            <div class="upload-content">
+              <div class="upload-icon">📁</div>
+              <p>Drag & Drop files here</p>
+              <p class="upload-hint">or click to browse</p>
+              <input type="file" id="fileInput" multiple hidden />
+            </div>
+          </div>
+          <div class="pipeline-progress" id="pipelineProgress">
+            <div class="pipeline-stage" data-stage="ingest">
+              <div class="stage-icon">📥</div>
+              <div class="stage-label">Ingest</div>
+              <div class="stage-bar"><div class="stage-fill"></div></div>
+            </div>
+            <div class="pipeline-stage" data-stage="analyze">
+              <div class="stage-icon">🔬</div>
+              <div class="stage-label">Analyze</div>
+              <div class="stage-bar"><div class="stage-fill"></div></div>
+            </div>
+            <div class="pipeline-stage" data-stage="visualize">
+              <div class="stage-icon">📊</div>
+              <div class="stage-label">Visualize</div>
+              <div class="stage-bar"><div class="stage-fill"></div></div>
+            </div>
+            <div class="pipeline-stage" data-stage="reflect">
+              <div class="stage-icon">🧠</div>
+              <div class="stage-label">Reflect</div>
+              <div class="stage-bar"><div class="stage-fill"></div></div>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <h3>Alerts</h3>
+
+        <!-- Swarm Console -->
+        <div class="card console-card">
+          <h3>
+            <span class="card-icon">🐙</span>
+            Swarm Console
+          </h3>
+          <div class="swarm-console" id="swarmConsole">
+            <div class="console-entry info">
+              <span class="timestamp">[--:--:--]</span>
+              <span class="stage-tag">SYSTEM</span>
+              <span class="log-message">Awaiting commands...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerts Panel -->
+        <div class="card alerts-card">
+          <h3>
+            <span class="card-icon">🚨</span>
+            Proactive Alerts
+            <span class="alert-badge" id="alertBadge">0</span>
+          </h3>
           <div class="alerts" id="alertsList"></div>
         </div>
-        <div class="card">
-          <h3>Dynamic Charts</h3>
-          <div class="chart" id="chart"></div>
-          <button id="refreshChart">Refresh Chart</button>
+
+        <!-- Charts Panel -->
+        <div class="card charts-card">
+          <h3>
+            <span class="card-icon">📈</span>
+            Dynamic Charts
+          </h3>
+          <div class="chart-tabs" id="chartTabs">
+            <button class="chart-tab active" data-chart="main">Overview</button>
+            <button class="chart-tab" data-chart="distribution">Distribution</button>
+            <button class="chart-tab" data-chart="correlation">Correlation</button>
+          </div>
+          <div class="chart-container" id="chartContainer">
+            <div class="chart-controls">
+              <button class="chart-ctrl" id="zoomIn" title="Zoom In">🔍+</button>
+              <button class="chart-ctrl" id="zoomOut" title="Zoom Out">🔍−</button>
+              <button class="chart-ctrl" id="resetView" title="Reset">↻</button>
+            </div>
+            <div id="plotlyChart"></div>
+          </div>
         </div>
       </div>
     </section>
   </main>
 
   <footer class="footer">
-    <div>Leviathan © 2026</div>
+    <div>Leviathan © 2026 — From the Depths</div>
     <button id="logout">Logout</button>
   </footer>
+
+  <!-- Audio for alerts -->
+  <audio id="alertSound" preload="auto">
+    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleVklP5Tazq9nGgU9mNzbpm8TCjySz9O6cRUJPZPN0r1wFQs7ks3Uv3ESCjqQzNPAcBILOY/L0sJwEgs5jsrRwnASCzmOytHCcA==" type="audio/wav">
+  </audio>
 
   <script src="/script.js"></script>
 </body>

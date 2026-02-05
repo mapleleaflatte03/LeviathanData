@@ -1,33 +1,91 @@
-const authPanel = document.getElementById('authPanel');
-const dashboardPanel = document.getElementById('dashboardPanel');
-const authMessage = document.getElementById('authMessage');
-const statusEl = document.getElementById('status');
-const chatLog = document.getElementById('chatLog');
-const chatInput = document.getElementById('chatInput');
-const chatSend = document.getElementById('chatSend');
-const uploadForm = document.getElementById('uploadForm');
-const pipelineStatus = document.getElementById('pipelineStatus');
-const alertsList = document.getElementById('alertsList');
-const chartEl = document.getElementById('chart');
-const refreshChart = document.getElementById('refreshChart');
-const logoutBtn = document.getElementById('logout');
+/**
+ * Leviathan Frontend - Ultimate UX
+ * Real-time streaming, monster immersion, full interactivity
+ */
 
+// ===== DOM ELEMENTS =====
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+const authPanel = $('#authPanel');
+const dashboardPanel = $('#dashboardPanel');
+const authMessage = $('#authMessage');
+const statusEl = $('#status');
+const chatLog = $('#chatLog');
+const chatInput = $('#chatInput');
+const chatSend = $('#chatSend');
+const typingIndicator = $('#typingIndicator');
+const uploadZone = $('#uploadZone');
+const fileInput = $('#fileInput');
+const pipelineProgress = $('#pipelineProgress');
+const swarmConsole = $('#swarmConsole');
+const alertsList = $('#alertsList');
+const alertBadge = $('#alertBadge');
+const alertModal = $('#alertModal');
+const alertModalBody = $('#alertModalBody');
+const modalClose = $('#modalClose');
+const dismissAlert = $('#dismissAlert');
+const autoDismissCheck = $('#autoDismiss');
+const toastContainer = $('#toastContainer');
+const plotlyChart = $('#plotlyChart');
+const chartTabs = $('#chartTabs');
+const monsterEye = $('#monsterEye');
+const tentacles = $('#tentacles');
+const brandTitle = $('#brandTitle');
+const alertSound = $('#alertSound');
+const logoutBtn = $('#logout');
+
+// ===== STATE =====
 const state = {
   accessToken: localStorage.getItem('accessToken') || '',
   refreshToken: localStorage.getItem('refreshToken') || '',
   userId: localStorage.getItem('userId') || '',
   ws: null,
   chatMessages: [],
-  currentBotEl: null
+  currentBotEl: null,
+  streamingText: '',
+  alertCount: 0,
+  currentChart: 'main',
+  chartData: {},
+  pipelineRunId: null,
+  autoDismissTimer: null
 };
 
-const setStatus = (text) => {
-  statusEl.textContent = text;
+// ===== UTILITIES =====
+const getTimestamp = () => {
+  const now = new Date();
+  return `[${now.toTimeString().slice(0, 8)}]`;
 };
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// ===== TOAST NOTIFICATIONS =====
+const showToast = (message, type = 'info', duration = 4000) => {
+  const icons = { error: '❌', success: '✅', warning: '⚠️', info: 'ℹ️' };
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
+    <span class="toast-icon">${icons[type]}</span>
+    <span class="toast-message">${message}</span>
+    <button class="toast-close">×</button>
+  `;
+  toastContainer.appendChild(toast);
+  
+  toast.querySelector('.toast-close').onclick = () => toast.remove();
+  setTimeout(() => toast.remove(), duration);
+};
+
+// ===== STATUS =====
+const setStatus = (text, connected = false) => {
+  statusEl.querySelector('.status-text').textContent = text;
+  statusEl.classList.toggle('connected', connected);
+};
+
+// ===== AUTH FLOW =====
 const showDashboard = () => {
   authPanel.style.display = 'none';
   dashboardPanel.classList.add('active');
+  initCharts();
 };
 
 const showAuth = () => {
@@ -35,20 +93,26 @@ const showAuth = () => {
   dashboardPanel.classList.remove('active');
 };
 
+// ===== API FETCH =====
 const apiFetch = async (url, options = {}) => {
-  const headers = options.headers || {};
+  const headers = { ...options.headers };
   if (state.accessToken) {
     headers.Authorization = `Bearer ${state.accessToken}`;
   }
-  const res = await fetch(url, { ...options, headers });
-  if (res.status === 401 && state.refreshToken && state.userId) {
-    const refreshed = await refreshTokens();
-    if (refreshed) {
-      headers.Authorization = `Bearer ${state.accessToken}`;
-      return fetch(url, { ...options, headers });
+  try {
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401 && state.refreshToken && state.userId) {
+      const refreshed = await refreshTokens();
+      if (refreshed) {
+        headers.Authorization = `Bearer ${state.accessToken}`;
+        return fetch(url, { ...options, headers });
+      }
     }
+    return res;
+  } catch (err) {
+    showToast('Network error: ' + err.message, 'error');
+    throw err;
   }
-  return res;
 };
 
 const setTokens = (data) => {
@@ -71,132 +135,491 @@ const refreshTokens = async () => {
     const data = await res.json();
     setTokens(data);
     return true;
-  } catch (err) {
+  } catch {
     return false;
   }
 };
 
+// ===== WEBSOCKET =====
 const connectWs = () => {
   if (state.ws) state.ws.close();
-  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${protocol}://${window.location.host}`);
+  const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${protocol}://${location.host}`);
   state.ws = ws;
 
   ws.onopen = () => {
-    setStatus('Connected');
+    setStatus('Connected', true);
     ws.send(JSON.stringify({ type: 'auth', requestId: 'auth', payload: { token: state.accessToken } }));
+    logToConsole('info', 'SYSTEM', 'WebSocket connected');
   };
 
   ws.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
-    if (msg.type === 'chat:token') {
-      appendChat('bot', msg.payload.token, true);
-      return;
-    }
-    if (msg.type === 'chat:end') {
-      state.currentBotEl = null;
-      return;
-    }
-    if (msg.type === 'pipeline:status') {
-      updatePipeline(msg.payload);
-      return;
-    }
-    if (msg.type === 'alert:new') {
-      pushAlert(msg.payload);
-      return;
+    try {
+      const msg = JSON.parse(event.data);
+      handleWsMessage(msg);
+    } catch (err) {
+      console.error('WS parse error:', err);
     }
   };
 
   ws.onclose = () => {
-    setStatus('Disconnected');
+    setStatus('Disconnected', false);
+    logToConsole('error', 'SYSTEM', 'Connection lost. Reconnecting...');
+    setTimeout(connectWs, 3000);
+  };
+
+  ws.onerror = () => {
+    showToast('WebSocket error', 'error');
   };
 };
 
-const appendChat = (role, content, stream = false) => {
-  if (!content) return;
-  let entry = null;
-  if (stream && role === 'bot' && state.currentBotEl) {
-    entry = state.currentBotEl;
-    entry.textContent += content;
+const handleWsMessage = (msg) => {
+  switch (msg.type) {
+    case 'chat:token':
+      handleChatToken(msg.payload.token);
+      break;
+    case 'chat:end':
+      finishStreaming();
+      break;
+    case 'pipeline:status':
+      updatePipeline(msg.payload);
+      break;
+    case 'pipeline:chart':
+      updateChartData(msg.payload);
+      break;
+    case 'alert:new':
+      pushAlert(msg.payload);
+      break;
+    case 'swarm:log':
+      logToConsole(msg.payload.level, msg.payload.stage, msg.payload.message);
+      break;
+  }
+};
+
+// ===== CHAT =====
+const appendChat = (role, content) => {
+  const entry = document.createElement('div');
+  entry.className = `chat-entry ${role}`;
+  
+  if (role === 'user') {
+    entry.innerHTML = `
+      <div class="avatar user-avatar">U</div>
+      <div class="message">
+        <span class="sender">You</span>
+        <p>${escapeHtml(content)}</p>
+      </div>
+    `;
   } else {
-    entry = document.createElement('div');
-    entry.className = `chat-entry ${role}`;
-    entry.textContent = content;
-    chatLog.appendChild(entry);
-    if (stream && role === 'bot') {
-      state.currentBotEl = entry;
+    entry.innerHTML = `
+      <div class="avatar agent-avatar">
+        <div class="mini-eye"></div>
+      </div>
+      <div class="message">
+        <span class="sender">Leviathan</span>
+        <p></p>
+      </div>
+    `;
+    state.currentBotEl = entry.querySelector('p');
+  }
+  
+  chatLog.appendChild(entry);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  triggerRipple();
+  return entry;
+};
+
+const handleChatToken = (token) => {
+  if (!state.currentBotEl) {
+    appendChat('bot', '');
+  }
+  state.streamingText += token;
+  state.currentBotEl.textContent = state.streamingText;
+  chatLog.scrollTop = chatLog.scrollHeight;
+  typingIndicator.classList.remove('active');
+};
+
+const finishStreaming = () => {
+  state.currentBotEl = null;
+  state.streamingText = '';
+  typingIndicator.classList.remove('active');
+};
+
+const sendChat = () => {
+  const text = chatInput.value.trim();
+  if (!text || !state.ws) return;
+  
+  appendChat('user', text);
+  state.chatMessages.push({ role: 'user', content: text });
+  
+  typingIndicator.classList.add('active');
+  activateTentacles();
+  intensifyEye();
+  
+  state.ws.send(JSON.stringify({
+    type: 'chat:request',
+    requestId: crypto.randomUUID(),
+    payload: { messages: state.chatMessages, stream: true }
+  }));
+  
+  chatInput.value = '';
+};
+
+const escapeHtml = (text) => {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+};
+
+// ===== UPLOAD & PIPELINE =====
+const setupUpload = () => {
+  uploadZone.onclick = () => fileInput.click();
+  fileInput.onchange = handleFileSelect;
+  
+  uploadZone.ondragover = (e) => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+  };
+  
+  uploadZone.ondragleave = () => {
+    uploadZone.classList.remove('dragover');
+  };
+  
+  uploadZone.ondrop = (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files.length) uploadFiles(files);
+  };
+};
+
+const handleFileSelect = () => {
+  if (fileInput.files.length) {
+    uploadFiles(fileInput.files);
+  }
+};
+
+const uploadFiles = async (files) => {
+  activateTentacles();
+  intensifyEye();
+  logToConsole('ingest', 'INGEST', `Uploading ${files.length} file(s)...`);
+  
+  for (const file of files) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      resetPipelineUI();
+      setPipelineStage('ingest', 'active');
+      
+      const res = await apiFetch('/api/files/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        showToast(data.error || 'Upload failed', 'error');
+        setPipelineStage('ingest', 'error');
+        logToConsole('error', 'INGEST', `Failed: ${data.error}`);
+        continue;
+      }
+      
+      state.pipelineRunId = data.runId;
+      logToConsole('success', 'INGEST', `File "${file.name}" queued → Run ${data.runId}`);
+      showToast(`Uploaded: ${file.name}`, 'success');
+      
+    } catch (err) {
+      showToast('Upload error: ' + err.message, 'error');
+      setPipelineStage('ingest', 'error');
     }
   }
-  chatLog.scrollTop = chatLog.scrollHeight;
 };
 
-const updatePipeline = (payload) => {
-  const item = document.createElement('div');
-  item.className = 'pipeline-item';
-  item.textContent = `${payload.stage}: ${payload.status} — ${payload.message}`;
-  pipelineStatus.prepend(item);
-};
-
-const pushAlert = (alert) => {
-  const item = document.createElement('div');
-  item.className = 'alert';
-  item.textContent = `${alert.level || 'info'}: ${alert.message}`;
-  alertsList.prepend(item);
-};
-
-const renderChart = () => {
-  const values = Array.from({ length: 8 }, () => Math.floor(Math.random() * 100));
-  const width = 260;
-  const height = 180;
-  const max = Math.max(...values, 1);
-  const barWidth = width / values.length;
-  const bars = values
-    .map((v, i) => {
-      const barHeight = (v / max) * (height - 20);
-      const x = i * barWidth + 6;
-      const y = height - barHeight;
-      return `<rect x="${x}" y="${y}" width="${barWidth - 12}" height="${barHeight}" rx="6" fill="#0088aa" />`;
-    })
-    .join('');
-  chartEl.innerHTML = `
-    <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
-      <rect width="${width}" height="${height}" fill="rgba(0,0,0,0.2)" rx="12" />
-      ${bars}
-    </svg>
-  `;
-};
-
-const loadAlerts = async () => {
-  const res = await apiFetch('/api/alerts');
-  if (!res.ok) return;
-  const data = await res.json();
-  alertsList.innerHTML = '';
-  (data.alerts || []).forEach(pushAlert);
-};
-
-const setupTabs = () => {
-  document.querySelectorAll('.tab').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-      document.querySelectorAll('.form').forEach((f) => f.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById(`${btn.dataset.tab}Form`).classList.add('active');
-    });
+const resetPipelineUI = () => {
+  $$('.pipeline-stage').forEach(s => {
+    s.classList.remove('active', 'complete', 'error');
+    s.querySelector('.stage-fill').style.width = '0%';
   });
 };
 
-const boot = async () => {
-  setupTabs();
-  renderChart();
-  refreshChart.addEventListener('click', renderChart);
-
-  if (state.accessToken) {
-    showDashboard();
-    connectWs();
-    loadAlerts();
-  } else {
-    showAuth();
+const setPipelineStage = (stage, status) => {
+  const el = $(`.pipeline-stage[data-stage="${stage}"]`);
+  if (!el) return;
+  
+  el.classList.remove('active', 'complete', 'error');
+  if (status) el.classList.add(status);
+  
+  if (status === 'complete') {
+    el.querySelector('.stage-fill').style.width = '100%';
   }
+};
+
+const updatePipeline = (payload) => {
+  const { stage, status, message, runId } = payload;
+  
+  if (status === 'running') {
+    setPipelineStage(stage, 'active');
+    logToConsole(stage, stage.toUpperCase(), message || `${stage} in progress...`);
+  } else if (status === 'complete') {
+    setPipelineStage(stage, 'complete');
+    logToConsole('success', stage.toUpperCase(), message || `${stage} complete`);
+  } else if (status === 'error') {
+    setPipelineStage(stage, 'error');
+    logToConsole('error', stage.toUpperCase(), message || `${stage} failed`);
+    showToast(`Pipeline error: ${message}`, 'error');
+  }
+  
+  // Map stage names
+  const stages = ['ingest', 'analyze', 'visualize', 'reflect'];
+  const stageNames = { ingest: 'ingest', analyze: 'analyze', viz: 'visualize', visualize: 'visualize', reflect: 'reflect' };
+  const normalized = stageNames[stage] || stage;
+  
+  if (normalized === 'reflect' && status === 'complete') {
+    deactivateTentacles();
+    calmEye();
+    showToast('Pipeline complete!', 'success');
+  }
+};
+
+// ===== SWARM CONSOLE =====
+const logToConsole = (level, stage, message) => {
+  const entry = document.createElement('div');
+  entry.className = `console-entry ${level}`;
+  entry.innerHTML = `
+    <span class="timestamp">${getTimestamp()}</span>
+    <span class="stage-tag">${stage}</span>
+    <span class="log-message">${escapeHtml(message)}</span>
+  `;
+  swarmConsole.appendChild(entry);
+  swarmConsole.scrollTop = swarmConsole.scrollHeight;
+  
+  // Keep max 100 entries
+  while (swarmConsole.children.length > 100) {
+    swarmConsole.removeChild(swarmConsole.firstChild);
+  }
+};
+
+// ===== ALERTS =====
+const pushAlert = (alert) => {
+  state.alertCount++;
+  alertBadge.textContent = state.alertCount;
+  
+  const item = document.createElement('div');
+  item.className = `alert-item ${alert.level || 'error'}`;
+  item.innerHTML = `
+    <div class="alert-level">${alert.level || 'ALERT'}</div>
+    <div class="alert-message">${escapeHtml(alert.message)}</div>
+    <div class="alert-time">${new Date().toLocaleTimeString()}</div>
+  `;
+  item.onclick = () => showAlertModal(alert);
+  alertsList.prepend(item);
+  
+  // Play sound
+  try {
+    alertSound.currentTime = 0;
+    alertSound.volume = 0.3;
+    alertSound.play().catch(() => {});
+  } catch {}
+  
+  // Show modal for critical
+  if (alert.level === 'critical' || alert.level === 'error') {
+    showAlertModal(alert);
+  }
+  
+  intensifyEye();
+  logToConsole('error', 'ALERT', alert.message);
+};
+
+const showAlertModal = (alert) => {
+  alertModalBody.innerHTML = `
+    <p><strong>Level:</strong> ${alert.level || 'Unknown'}</p>
+    <p><strong>Message:</strong> ${escapeHtml(alert.message)}</p>
+    <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+    ${alert.details ? `<p><strong>Details:</strong> ${escapeHtml(alert.details)}</p>` : ''}
+  `;
+  alertModal.classList.add('active');
+  
+  if (autoDismissCheck.checked) {
+    state.autoDismissTimer = setTimeout(hideAlertModal, 10000);
+  }
+};
+
+const hideAlertModal = () => {
+  alertModal.classList.remove('active');
+  if (state.autoDismissTimer) {
+    clearTimeout(state.autoDismissTimer);
+    state.autoDismissTimer = null;
+  }
+};
+
+const loadAlerts = async () => {
+  try {
+    const res = await apiFetch('/api/alerts');
+    if (!res.ok) return;
+    const data = await res.json();
+    alertsList.innerHTML = '';
+    state.alertCount = 0;
+    (data.alerts || []).forEach(a => pushAlert(a));
+  } catch {}
+};
+
+// ===== CHARTS =====
+const initCharts = () => {
+  renderChart('main');
+};
+
+const renderChart = (type) => {
+  state.currentChart = type;
+  
+  const layout = {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,15,30,0.5)',
+    font: { color: '#d8f3ff', family: 'Space Grotesk' },
+    margin: { t: 30, r: 20, b: 40, l: 50 },
+    xaxis: { gridcolor: 'rgba(0,136,170,0.2)', zerolinecolor: 'rgba(0,136,170,0.3)' },
+    yaxis: { gridcolor: 'rgba(0,136,170,0.2)', zerolinecolor: 'rgba(0,136,170,0.3)' },
+    dragmode: 'pan'
+  };
+  
+  const config = {
+    responsive: true,
+    displayModeBar: false,
+    scrollZoom: true
+  };
+  
+  let data;
+  
+  if (type === 'main' || !state.chartData[type]) {
+    // Demo data
+    const x = Array.from({ length: 20 }, (_, i) => `Day ${i + 1}`);
+    const y = Array.from({ length: 20 }, () => Math.floor(Math.random() * 100) + 20);
+    data = [{
+      x, y,
+      type: 'bar',
+      marker: {
+        color: y.map(v => v > 70 ? '#00cc66' : v > 40 ? '#0088aa' : '#ff4444'),
+        line: { color: '#00aacc', width: 1 }
+      }
+    }];
+  } else if (type === 'distribution') {
+    const values = Array.from({ length: 100 }, () => Math.random() * 100);
+    data = [{
+      x: values,
+      type: 'histogram',
+      marker: { color: '#0088aa' },
+      nbinsx: 20
+    }];
+  } else if (type === 'correlation') {
+    const x = Array.from({ length: 50 }, () => Math.random() * 100);
+    const y = x.map(v => v * 0.8 + Math.random() * 30);
+    data = [{
+      x, y,
+      mode: 'markers',
+      type: 'scatter',
+      marker: {
+        color: '#00aacc',
+        size: 8,
+        opacity: 0.7
+      }
+    }];
+  }
+  
+  Plotly.newPlot('plotlyChart', data, layout, config);
+};
+
+const updateChartData = (payload) => {
+  state.chartData[payload.type] = payload.data;
+  if (state.currentChart === payload.type) {
+    renderChart(payload.type);
+  }
+  logToConsole('viz', 'VIZ', `Chart "${payload.type}" updated`);
+};
+
+// ===== MONSTER EFFECTS =====
+const activateTentacles = () => {
+  tentacles.classList.add('active');
+};
+
+const deactivateTentacles = () => {
+  setTimeout(() => tentacles.classList.remove('active'), 2000);
+};
+
+const intensifyEye = () => {
+  monsterEye.classList.add('intense');
+  setTimeout(() => monsterEye.classList.remove('intense'), 3000);
+};
+
+const calmEye = () => {
+  monsterEye.classList.remove('intense');
+};
+
+const triggerRipple = () => {
+  brandTitle.classList.remove('ripple');
+  void brandTitle.offsetWidth; // Reflow
+  brandTitle.classList.add('ripple');
+  setTimeout(() => brandTitle.classList.remove('ripple'), 1000);
+};
+
+// ===== QUICK ACTIONS =====
+const setupQuickActions = () => {
+  $$('.action-btn').forEach(btn => {
+    btn.onclick = () => handleQuickAction(btn.dataset.action);
+  });
+};
+
+const handleQuickAction = (action) => {
+  const prompts = {
+    'auto-eda': 'Run automatic exploratory data analysis on my latest uploaded dataset.',
+    'classify-images': 'Classify all images in the uploads folder using computer vision.',
+    'spam-detect': 'Analyze the uploaded text data for spam detection using BERT.',
+    'time-series': 'Perform time-series forecasting on my temporal data.',
+    'anomaly-hunt': 'Hunt for anomalies and outliers in the current dataset.'
+  };
+  
+  const prompt = prompts[action];
+  if (prompt) {
+    chatInput.value = prompt;
+    sendChat();
+  }
+};
+
+// ===== CHART CONTROLS =====
+const setupChartControls = () => {
+  $('#zoomIn').onclick = () => {
+    Plotly.relayout('plotlyChart', {
+      'xaxis.range': [
+        (plotlyChart._fullLayout.xaxis.range[0] + plotlyChart._fullLayout.xaxis.range[1]) / 2 - 
+        (plotlyChart._fullLayout.xaxis.range[1] - plotlyChart._fullLayout.xaxis.range[0]) / 4,
+        (plotlyChart._fullLayout.xaxis.range[0] + plotlyChart._fullLayout.xaxis.range[1]) / 2 + 
+        (plotlyChart._fullLayout.xaxis.range[1] - plotlyChart._fullLayout.xaxis.range[0]) / 4
+      ]
+    });
+  };
+  
+  $('#zoomOut').onclick = () => {
+    Plotly.relayout('plotlyChart', { 'xaxis.autorange': true, 'yaxis.autorange': true });
+  };
+  
+  $('#resetView').onclick = () => {
+    Plotly.relayout('plotlyChart', { 'xaxis.autorange': true, 'yaxis.autorange': true });
+  };
+  
+  chartTabs.onclick = (e) => {
+    if (e.target.classList.contains('chart-tab')) {
+      $$('.chart-tab').forEach(t => t.classList.remove('active'));
+      e.target.classList.add('active');
+      renderChart(e.target.dataset.chart);
+    }
+  };
+};
+
+// ===== AUTH =====
+const setupTabs = () => {
+  $$('.tab').forEach(btn => {
+    btn.onclick = () => {
+      $$('.tab').forEach(t => t.classList.remove('active'));
+      $$('.form').forEach(f => f.classList.remove('active'));
+      btn.classList.add('active');
+      $(`#${btn.dataset.tab}Form`).classList.add('active');
+    };
+  });
 };
 
 const handleAuth = async (endpoint, form) => {
@@ -205,72 +628,96 @@ const handleAuth = async (endpoint, form) => {
     email: formData.get('email'),
     password: formData.get('password')
   };
-  const res = await fetch(`/api/auth/${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    authMessage.textContent = data.error || 'Auth failed';
-    return;
-  }
-  authMessage.textContent = 'Success.';
-  setTokens({ ...data, user: data.user });
-  showDashboard();
-  connectWs();
-  loadAlerts();
-};
-
-document.getElementById('loginForm').addEventListener('submit', (e) => {
-  e.preventDefault();
-  handleAuth('login', e.target);
-});
-
-document.getElementById('registerForm').addEventListener('submit', (e) => {
-  e.preventDefault();
-  handleAuth('register', e.target);
-});
-
-chatSend.addEventListener('click', () => {
-  const text = chatInput.value.trim();
-  if (!text) return;
-  appendChat('user', text);
-  state.chatMessages.push({ role: 'user', content: text });
-  state.ws?.send(JSON.stringify({
-    type: 'chat:request',
-    requestId: crypto.randomUUID(),
-    payload: { messages: state.chatMessages, stream: true }
-  }));
-  chatInput.value = '';
-});
-
-uploadForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const formData = new FormData(uploadForm);
-  const res = await apiFetch('/api/files/upload', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (!res.ok) {
-    alert(data.error || 'Upload failed');
-    return;
-  }
-  updatePipeline({ stage: 'ingest', status: 'queued', message: `Run ${data.runId} started` });
-});
-
-logoutBtn.addEventListener('click', async () => {
-  if (state.refreshToken && state.userId) {
-    await fetch('/api/auth/logout', {
+  
+  try {
+    const res = await fetch(`/api/auth/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: state.userId, refreshToken: state.refreshToken })
+      body: JSON.stringify(body)
     });
+    const data = await res.json();
+    
+    if (!res.ok) {
+      authMessage.textContent = data.error || 'Authentication failed';
+      showToast(data.error || 'Auth failed', 'error');
+      return;
+    }
+    
+    authMessage.textContent = 'Success! Entering the abyss...';
+    setTokens(data);
+    showDashboard();
+    connectWs();
+    loadAlerts();
+    showToast('Welcome to Leviathan', 'success');
+    
+  } catch (err) {
+    authMessage.textContent = 'Network error';
+    showToast('Network error: ' + err.message, 'error');
   }
+};
+
+// ===== LOGOUT =====
+const logout = async () => {
+  try {
+    if (state.refreshToken && state.userId) {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: state.userId, refreshToken: state.refreshToken })
+      });
+    }
+  } catch {}
+  
   localStorage.clear();
   state.accessToken = '';
   state.refreshToken = '';
   state.userId = '';
   state.ws?.close();
   showAuth();
-});
+  showToast('Logged out', 'info');
+};
 
+// ===== INIT =====
+const boot = () => {
+  setupTabs();
+  setupUpload();
+  setupQuickActions();
+  setupChartControls();
+  
+  // Event listeners
+  chatSend.onclick = sendChat;
+  chatInput.onkeydown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChat();
+    }
+  };
+  
+  $('#loginForm').onsubmit = (e) => {
+    e.preventDefault();
+    handleAuth('login', e.target);
+  };
+  
+  $('#registerForm').onsubmit = (e) => {
+    e.preventDefault();
+    handleAuth('register', e.target);
+  };
+  
+  logoutBtn.onclick = logout;
+  modalClose.onclick = hideAlertModal;
+  dismissAlert.onclick = hideAlertModal;
+  
+  // Check auth
+  if (state.accessToken) {
+    showDashboard();
+    connectWs();
+    loadAlerts();
+  } else {
+    showAuth();
+  }
+  
+  logToConsole('info', 'SYSTEM', 'Leviathan frontend initialized');
+};
+
+// Start
 boot();
