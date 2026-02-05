@@ -144,7 +144,9 @@ const refreshTokens = async () => {
 const connectWs = () => {
   if (state.ws) state.ws.close();
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${protocol}://${location.host}`);
+  const wsUrl = `${protocol}://${location.host}/ws`;
+  console.log('[WS] Connecting to:', wsUrl);
+  const ws = new WebSocket(wsUrl);
   state.ws = ws;
 
   ws.onopen = () => {

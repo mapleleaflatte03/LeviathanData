@@ -19,14 +19,20 @@ const envelope = (type, requestId, payload) => ({
 });
 
 export const initWebsocket = (server, log) => {
-  const wss = new WebSocketServer({ server });
+  const wss = new WebSocketServer({ server, path: '/ws' });
   const clients = new Map();
+
+  log?.info('WebSocket server initialized on /ws');
 
   const addClient = (ws) => {
     clients.set(ws, { userId: null, authed: false });
+    log?.info({ clientCount: clients.size }, 'WebSocket client connected');
   };
 
-  const removeClient = (ws) => clients.delete(ws);
+  const removeClient = (ws) => {
+    clients.delete(ws);
+    log?.info({ clientCount: clients.size }, 'WebSocket client disconnected');
+  };
 
   const send = (ws, type, requestId, payload) => {
     if (ws.readyState !== WebSocket.OPEN) return;
@@ -51,11 +57,15 @@ export const initWebsocket = (server, log) => {
 
       if (msg.type === 'auth') {
         try {
-          const payload = jwt.verify(msg.payload?.token || '', config.jwtSecret);
+          const token = msg.payload?.token || '';
+          log?.info({ hasToken: !!token, tokenLength: token.length }, 'WS auth attempt');
+          const payload = jwt.verify(token, config.jwtSecret);
           meta.userId = payload.sub;
           meta.authed = true;
           send(ws, 'auth:ok', msg.requestId, { userId: meta.userId });
+          log?.info({ userId: meta.userId }, 'WS auth success');
         } catch (err) {
+          log?.error({ err: err.message }, 'WS auth failed');
           send(ws, 'error', msg.requestId, { message: 'auth failed' });
         }
         return;
@@ -100,7 +110,14 @@ export const initWebsocket = (server, log) => {
       }
     });
 
-    ws.on('close', () => removeClient(ws));
+    ws.on('close', (code, reason) => {
+      log?.info({ code, reason: reason?.toString() }, 'WS close');
+      removeClient(ws);
+    });
+    
+    ws.on('error', (err) => {
+      log?.error({ err: err.message }, 'WS error');
+    });
   });
 
   return {
