@@ -38,7 +38,7 @@ def start_proactive_hunter(log):
         # Import here to avoid circular imports
         from .crawler import get_background_hunter
         
-        log.info("Starting proactive background hunter (20 min interval)")
+        log.info("Starting proactive background hunter (15 min interval)")
         
         # Wait 5 minutes before first hunt to let system stabilize
         time.sleep(300)
@@ -74,13 +74,13 @@ def start_proactive_hunter(log):
                 
                 from datetime import datetime
                 hunter.last_hunt = datetime.now()
-                log.info(f"Proactive hunt cycle complete. Next in 20 minutes.")
+                log.info(f"Proactive hunt cycle complete. Next in 15 minutes.")
                 
             except Exception as e:
                 log.error(f"Proactive hunter cycle error: {e}")
             
-            # Wait 20 minutes
-            time.sleep(20 * 60)
+            # Wait 15 minutes
+            time.sleep(15 * 60)
     
     _hunter_thread = threading.Thread(target=hunter_loop, daemon=True)
     _hunter_thread.start()

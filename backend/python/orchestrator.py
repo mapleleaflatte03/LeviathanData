@@ -1979,17 +1979,34 @@ Respond with a JSON object containing:
             insights.append(f"MAE after refinement loop: {float(mae_val):.4f}.")
 
     deterministic_summary = " ".join(insights)
-
-    prompt = [
-        {"role": "system", "content": "You are Leviathan, an autonomous data co-worker."},
-        {
-            "role": "user",
-            "content": (
-                "Summarize this run in 3 concise sentences and propose 1 concrete next step. "
-                f"Run details: {deterministic_summary}"
-            ),
-        },
-    ]
+    
+    # Get language preference (default VN)
+    language = state.get("language", "vi")
+    
+    if language == "vi":
+        prompt = [
+            {"role": "system", "content": "Bạn là Leviathan, trợ lý phân tích dữ liệu thông minh. Trả lời bằng tiếng Việt, chuyên nghiệp và súc tích."},
+            {
+                "role": "user",
+                "content": (
+                    "Tóm tắt kết quả phân tích trong 3 câu súc tích và đề xuất 1 bước tiếp theo cụ thể. "
+                    "Bao gồm: phân tích nguyên nhân, khuyến nghị kinh doanh, và insight sâu. "
+                    f"Chi tiết phân tích: {deterministic_summary}"
+                ),
+            },
+        ]
+    else:
+        prompt = [
+            {"role": "system", "content": "You are Leviathan, an autonomous data intelligence co-worker."},
+            {
+                "role": "user",
+                "content": (
+                    "Summarize this analysis in 3 concise sentences and propose 1 concrete next step. "
+                    "Include: causal reasoning, business recommendation, and deep insight. "
+                    f"Analysis details: {deterministic_summary}"
+                ),
+            },
+        ]
 
     try:
         llm_text = chat_completion(prompt).strip()

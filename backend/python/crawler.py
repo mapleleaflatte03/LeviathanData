@@ -1,13 +1,13 @@
 """
 Leviathan Ethical Autonomous Crawler Module
 
-Ethical guidelines:
-- 4s rate limit between requests
+Arbitrary prompt-only data hunting:
+- 5s rate limit between requests
 - Public/legal sources only  
-- Max 300 items per hunt
+- Max 500 items per hunt
 - 60s timeout per source
 - Respect robots.txt
-- VN-focused: Cafef, VNExpress, VNDIRECT, Yahoo Finance VN
+- Dynamic source: Yahoo global, Alpha Vantage, World Bank, VN priority
 """
 
 from __future__ import annotations
@@ -29,12 +29,12 @@ import pandas as pd
 logger = logging.getLogger("crawler")
 
 # Ethical crawl config
-RATE_LIMIT_SECONDS = 4.0
-MAX_ITEMS_PER_HUNT = 300
+RATE_LIMIT_SECONDS = 5.0
+MAX_ITEMS_PER_HUNT = 500
 TIMEOUT_SECONDS = 60
 USER_AGENT = "Leviathan-DataHunter/1.0 (Ethical Crawler; +https://github.com/leviathan)"
 
-# Approved public sources
+# Approved public sources (expanded for arbitrary prompt)
 APPROVED_SOURCES = {
     # Vietnam finance
     "vnexpress.net",
@@ -43,22 +43,34 @@ APPROVED_SOURCES = {
     "stockbiz.vn",
     "hsc.com.vn",
     "fpts.com.vn",
+    # Global finance
     "yahoo.com",
     "finance.yahoo.com",
     "query1.finance.yahoo.com",
     "query2.finance.yahoo.com",
+    "alphavantage.co",
+    "finnhub.io",
+    "api.iex.cloud",
+    # Tech company official
+    "investor.apple.com",
+    "ir.tesla.com",
+    "investor.fb.com",
+    "abc.xyz",
     # Data APIs
     "kaggle.com",
     "api.worldbank.org",
     "data.worldbank.org",
-    "alphavantage.co",
+    "api.imf.org",
     # News RSS
     "feeds.feedburner.com",
     "rss.cnn.com",
+    "feeds.reuters.com",
+    "feeds.bbci.co.uk",
     # Government/Open data
     "data.gov",
     "data.gov.vn",
     "gso.gov.vn",
+    "api.census.gov",
 }
 
 
@@ -139,10 +151,14 @@ class EthicalCrawler:
         self._emit_progress("CLASSIFY", f"Hunt type: {hunt_type}")
         
         try:
-            if hunt_type == "vn_stock":
+            if hunt_type == "global_stock":
+                await self._hunt_global_stock(prompt)
+            elif hunt_type == "vn_stock":
                 await self._hunt_vn_stock(prompt)
             elif hunt_type == "vn_news":
                 await self._hunt_vn_news(prompt)
+            elif hunt_type == "sentiment":
+                await self._hunt_sentiment(prompt)
             elif hunt_type == "kaggle":
                 await self._hunt_kaggle(prompt)
             elif hunt_type == "world_bank":
@@ -164,17 +180,30 @@ class EthicalCrawler:
         }
     
     def _classify_hunt(self, prompt: str) -> str:
-        """Classify hunt type from prompt."""
+        """Classify hunt type from prompt - supports arbitrary companies/topics."""
         prompt_lower = prompt.lower()
         
-        if any(k in prompt_lower for k in ["vn stock", "vietnam stock", "vni", "vnindex", "yahoo finance vietnam"]):
+        # Global companies/stocks (arbitrary)
+        global_companies = ["apple", "aapl", "tesla", "tsla", "microsoft", "msft", 
+                           "google", "googl", "amazon", "amzn", "meta", "fb",
+                           "nvidia", "nvda", "netflix", "nflx", "intel", "intc"]
+        if any(c in prompt_lower for c in global_companies):
+            return "global_stock"
+        
+        # VN stocks
+        if any(k in prompt_lower for k in ["vn stock", "vietnam stock", "vni", "vnindex", 
+                                           "vndirect", "chứng khoán", "cổ phiếu"]):
             return "vn_stock"
-        elif any(k in prompt_lower for k in ["vn news", "vietnam news", "vnexpress", "cafef", "vietnamese article"]):
+        elif any(k in prompt_lower for k in ["vn news", "vietnam news", "vnexpress", "cafef", 
+                                             "tin tức", "vietnamese article"]):
             return "vn_news"
         elif any(k in prompt_lower for k in ["kaggle", "titanic", "iris", "mnist"]):
             return "kaggle"
-        elif any(k in prompt_lower for k in ["world bank", "gdp", "economic indicator", "country data"]):
+        elif any(k in prompt_lower for k in ["world bank", "gdp", "economic indicator", 
+                                             "country data", "dự báo gdp"]):
             return "world_bank"
+        elif any(k in prompt_lower for k in ["sentiment", "cảm xúc", "news sentiment"]):
+            return "sentiment"
         elif any(k in prompt_lower for k in ["rss", "feed", "news feed"]):
             return "rss"
         else:
@@ -219,6 +248,122 @@ class EthicalCrawler:
         except Exception as e:
             logger.error(f"Fetch error {url}: {e}")
             return None
+    
+    def _extract_ticker(self, prompt: str) -> List[str]:
+        """Extract stock ticker symbols from prompt."""
+        prompt_lower = prompt.lower()
+        
+        # Company name to ticker mapping
+        company_tickers = {
+            "apple": "AAPL", "tesla": "TSLA", "microsoft": "MSFT",
+            "google": "GOOGL", "alphabet": "GOOGL", "amazon": "AMZN",
+            "meta": "META", "facebook": "META", "nvidia": "NVDA",
+            "netflix": "NFLX", "intel": "INTC", "amd": "AMD",
+            "amazon": "AMZN", "disney": "DIS", "nike": "NKE",
+        }
+        
+        tickers = []
+        for company, ticker in company_tickers.items():
+            if company in prompt_lower:
+                tickers.append(ticker)
+        
+        # Also look for explicit tickers (uppercase 1-5 letter words)
+        import re
+        explicit_tickers = re.findall(r'\b([A-Z]{1,5})\b', prompt)
+        tickers.extend([t for t in explicit_tickers if len(t) >= 2])
+        
+        return list(set(tickers)) if tickers else ["AAPL"]  # Default to Apple
+    
+    async def _hunt_global_stock(self, prompt: str) -> None:
+        """Hunt for global stock data from Yahoo Finance."""
+        self._emit_progress("HUNT", "Fetching global stock data from Yahoo Finance...")
+        
+        tickers = self._extract_ticker(prompt)
+        self._emit_progress("TICKER", f"Detected tickers: {', '.join(tickers)}")
+        
+        for symbol in tickers:
+            if len(self.items_collected) >= MAX_ITEMS_PER_HUNT:
+                break
+            
+            # Use Yahoo Finance API (public, rate-limited)
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=3mo"
+            data = await self._fetch_json(url)
+            
+            if data and "chart" in data and data["chart"]["result"]:
+                result = data["chart"]["result"][0]
+                meta = result.get("meta", {})
+                timestamps = result.get("timestamp", [])
+                quotes = result.get("indicators", {}).get("quote", [{}])[0]
+                
+                for i, ts in enumerate(timestamps[-90:]):  # Last 90 days
+                    if len(self.items_collected) >= MAX_ITEMS_PER_HUNT:
+                        break
+                    
+                    item = {
+                        "symbol": symbol,
+                        "company": meta.get("shortName", symbol),
+                        "currency": meta.get("currency", "USD"),
+                        "date": datetime.fromtimestamp(ts).isoformat(),
+                        "open": quotes.get("open", [None])[i] if i < len(quotes.get("open", [])) else None,
+                        "high": quotes.get("high", [None])[i] if i < len(quotes.get("high", [])) else None,
+                        "low": quotes.get("low", [None])[i] if i < len(quotes.get("low", [])) else None,
+                        "close": quotes.get("close", [None])[i] if i < len(quotes.get("close", [])) else None,
+                        "volume": quotes.get("volume", [None])[i] if i < len(quotes.get("volume", [])) else None,
+                        "source": "yahoo_finance_global",
+                    }
+                    self.items_collected.append(item)
+                    self.on_item(item)
+                
+                self.sources_used.append(f"Yahoo Finance Global: {symbol}")
+                self._emit_progress("DATA", f"Collected {len(self.items_collected)} records for {symbol}")
+    
+    async def _hunt_sentiment(self, prompt: str) -> None:
+        """Hunt for news sentiment data."""
+        self._emit_progress("HUNT", "Crawling news for sentiment analysis...")
+        
+        # Combine VN news + global RSS for sentiment
+        rss_feeds = [
+            ("https://vnexpress.net/rss/tin-moi-nhat.rss", "VNExpress"),
+            ("https://cafef.vn/rss/trang-chu.rss", "CafeF"),
+            ("http://feeds.bbci.co.uk/news/business/rss.xml", "BBC Business"),
+            ("http://feeds.reuters.com/reuters/businessNews", "Reuters"),
+        ]
+        
+        for feed_url, source_name in rss_feeds:
+            if len(self.items_collected) >= MAX_ITEMS_PER_HUNT:
+                break
+            
+            try:
+                domain = urlparse(feed_url).netloc
+                await self.rate_limiter.wait(domain)
+                
+                async with self._session.get(feed_url) as response:
+                    if response.status != 200:
+                        continue
+                    content = await response.text()
+                
+                feed = feedparser.parse(content)
+                
+                for entry in feed.entries[:40]:
+                    if len(self.items_collected) >= MAX_ITEMS_PER_HUNT:
+                        break
+                    
+                    item = {
+                        "title": entry.get("title", ""),
+                        "link": entry.get("link", ""),
+                        "published": entry.get("published", ""),
+                        "summary": entry.get("summary", "")[:500],
+                        "source": source_name,
+                        "hunt_type": "sentiment",
+                    }
+                    self.items_collected.append(item)
+                    self.on_item(item)
+                
+                self.sources_used.append(source_name)
+                self._emit_progress("DATA", f"Collected {len(self.items_collected)} items for sentiment from {source_name}")
+                
+            except Exception as e:
+                logger.error(f"Sentiment feed error {feed_url}: {e}")
     
     async def _hunt_vn_stock(self, prompt: str) -> None:
         """Hunt for Vietnam stock market data from Yahoo Finance."""

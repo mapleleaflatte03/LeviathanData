@@ -476,11 +476,11 @@ const setupLanguageToggle = () => {
 const updateUILanguage = () => {
   const isVN = state.language === 'vi';
   
-  // Update chat placeholder
+  // Update chat placeholder - arbitrary prompt
   if (chatInput) {
     chatInput.placeholder = isVN 
-      ? 'Ví dụ: Phân tích xu hướng chứng khoán VN gần nhất...'
-      : 'e.g., Analyze recent VN stock market trends...';
+      ? 'Phân tích bất kỳ: Apple, VNDirect, Tesla, GDP Việt Nam...'
+      : 'Analyze anything: Apple, Tesla, VN stocks, Vietnam GDP...';
   }
   
   // Update hunt suggestions
@@ -489,12 +489,12 @@ const updateUILanguage = () => {
     suggestionLabel.textContent = isVN ? 'Săn dữ liệu nhanh:' : 'Quick Hunts:';
   }
   
-  // Update hunt button labels
+  // Update hunt button labels - arbitrary
   const huntBtnLabels = {
-    'vn-stock': isVN ? '📈 Chứng khoán VN' : '📈 VN Stocks',
-    'vn-news': isVN ? '📰 Tin tức VN' : '📰 VN News',
-    'vn-gdp': isVN ? '🌍 GDP Việt Nam' : '🌍 Vietnam GDP',
-    'vn-sentiment': isVN ? '💬 Sentiment VN' : '💬 VN Sentiment'
+    'vn-stock': isVN ? '📈 Cổ phiếu VN/Global' : '📈 VN/Global Stocks',
+    'vn-news': isVN ? '📰 Tin tức bất kỳ' : '📰 Any News',
+    'vn-gdp': isVN ? '🌍 GDP toàn cầu' : '🌍 Global GDP',
+    'vn-sentiment': isVN ? '💬 Sentiment' : '💬 Sentiment'
   };
   
   $$('.hunt-btn').forEach(btn => {
@@ -749,6 +749,28 @@ const loadAlerts = async () => {
 };
 
 // ===== CHARTS =====
+const getChartTitleVN = (type) => {
+  const titles = {
+    main: 'Tổng quan dữ liệu',
+    distribution: 'Phân phối dữ liệu',
+    correlation: 'Tương quan',
+    forecast: 'Dự báo xu hướng',
+    custom: 'Biểu đồ tùy chỉnh'
+  };
+  return titles[type] || 'Biểu đồ';
+};
+
+const getChartTitleEN = (type) => {
+  const titles = {
+    main: 'Data Overview',
+    distribution: 'Distribution Analysis',
+    correlation: 'Correlation Matrix',
+    forecast: 'Trend Forecast',
+    custom: 'Custom Chart'
+  };
+  return titles[type] || 'Chart';
+};
+
 const initCharts = () => {
   // Show placeholder until real data arrives
   renderChart('main');
@@ -756,6 +778,7 @@ const initCharts = () => {
 
 const renderChart = (type) => {
   state.currentChart = type;
+  const isVN = state.language === 'vi';
   
   const layout = {
     paper_bgcolor: 'rgba(0,0,0,0)',
@@ -764,13 +787,20 @@ const renderChart = (type) => {
     margin: { t: 30, r: 20, b: 40, l: 50 },
     xaxis: { gridcolor: 'rgba(0,136,170,0.2)', zerolinecolor: 'rgba(0,136,170,0.3)' },
     yaxis: { gridcolor: 'rgba(0,136,170,0.2)', zerolinecolor: 'rgba(0,136,170,0.3)' },
-    dragmode: 'pan'
+    dragmode: 'pan',
+    hovermode: 'closest',
+    title: {
+      text: isVN ? getChartTitleVN(type) : getChartTitleEN(type),
+      font: { size: 14, color: '#0088aa' }
+    }
   };
   
   const config = {
     responsive: true,
-    displayModeBar: false,
-    scrollZoom: true
+    displayModeBar: true,
+    modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+    scrollZoom: true,
+    displaylogo: false
   };
   
   let data;
@@ -1137,6 +1167,26 @@ const renderChart = (type) => {
   }
   
   Plotly.newPlot('plotlyChart', data, layout, config);
+  
+  // Add drill-down click handler for PowerBI-like interactivity
+  const plotEl = document.getElementById('plotlyChart');
+  if (plotEl) {
+    plotEl.on('plotly_click', (eventData) => {
+      if (eventData.points && eventData.points.length > 0) {
+        const point = eventData.points[0];
+        const label = point.x || point.label || `Point ${point.pointIndex}`;
+        const dataPoint = {
+          x: point.x,
+          y: point.y,
+          value: point.y,
+          index: point.pointIndex,
+          series: point.data?.name || 'Main',
+          ...((state.lastData?.analysis?.data_preview || [])[point.pointIndex] || {})
+        };
+        showDrilldown(label, dataPoint);
+      }
+    });
+  }
 };
 
 const updateChartData = (payload) => {
