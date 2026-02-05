@@ -82,6 +82,10 @@ export const initWebsocket = (server, log) => {
           }
         } catch (err) {
           log?.error({ err }, 'chat stream failed');
+          send(ws, 'chat:token', msg.requestId, {
+            token: 'LLM unavailable right now. Please retry shortly.'
+          });
+          send(ws, 'chat:end', msg.requestId, { ok: false, fallback: true });
           send(ws, 'error', msg.requestId, { message: err.message });
         }
       }

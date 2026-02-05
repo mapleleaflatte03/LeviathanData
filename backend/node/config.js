@@ -27,7 +27,7 @@ export const config = {
   dbPath: resolvePath(env.DB_PATH, './data/leviathan.db'),
   uploadDir: resolvePath(env.UPLOAD_DIR, './data/uploads'),
   reportDir: resolvePath(env.REPORT_DIR, './data/reports'),
-  maxUploadMb: Number(env.MAX_UPLOAD_MB || 50),
+  maxUploadMb: Number(env.MAX_UPLOAD_MB || 250),
   corsOrigin: env.CORS_ORIGIN || 'http://localhost:3000',
   logLevel: env.LOG_LEVEL || 'info',
   promPort: Number(env.PROM_PORT || 9090),
