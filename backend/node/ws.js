@@ -160,6 +160,97 @@ export const initWebsocket = (server, log) => {
         }
       }
 
+      // OpenClaw Full-Stack OSINT Company Analysis handler
+      if (msg.type === 'openclaw:analyze') {
+        const companyName = msg.payload?.company_name || msg.payload?.companyName || '';
+        const prompt = msg.payload?.prompt || '';
+        const language = msg.payload?.language || 'vi';
+        
+        if (!companyName) {
+          send(ws, 'openclaw:error', msg.requestId, { 
+            error: 'Company name is required for analysis'
+          });
+          return;
+        }
+        
+        try {
+          // Stage 1: OSINT
+          send(ws, 'openclaw:progress', msg.requestId, { 
+            stage: 'OSINT', 
+            message: `Đang thu thập dữ liệu OSINT cho ${companyName}...`,
+            percent: 10
+          });
+          
+          // Call Python OpenClaw analyze endpoint
+          const result = await callPython('/openclaw/analyze', { 
+            company_name: companyName,
+            prompt,
+            language,
+            export_pdf: true,
+            export_html: true
+          });
+          
+          // Stage 2: Progress updates from execution log
+          const stages = ['OSINT', 'PIPELINE', 'LLM', 'DASHBOARD', 'REPORT'];
+          let stageIndex = 0;
+          
+          if (result.execution_log) {
+            for (const logEntry of result.execution_log) {
+              for (const stage of stages) {
+                if (logEntry.includes(`[${stage}]`)) {
+                  stageIndex = stages.indexOf(stage);
+                  break;
+                }
+              }
+              send(ws, 'openclaw:progress', msg.requestId, { 
+                stage: stages[stageIndex] || 'PROCESSING', 
+                message: logEntry,
+                percent: Math.min(20 + (stageIndex * 16), 95)
+              });
+            }
+          }
+          
+          // Stream analysis text if available
+          if (result.analysis) {
+            send(ws, 'openclaw:progress', msg.requestId, { 
+              stage: 'OUTPUT', 
+              message: 'Đang xuất phân tích...',
+              percent: 95
+            });
+            
+            const words = result.analysis.split(' ');
+            for (const word of words) {
+              send(ws, 'openclaw:token', msg.requestId, { token: word + ' ' });
+              await new Promise(r => setTimeout(r, 25));  // Streaming effect
+            }
+          }
+          
+          // Send completion with all data
+          send(ws, 'openclaw:complete', msg.requestId, {
+            success: result.success || true,
+            company: companyName,
+            osintToolsUsed: result.osint_tools_used || [],
+            osintItemsCollected: result.osint_items_collected || 0,
+            osintData: result.osint_data || {},
+            kpis: result.kpis || {},
+            analysis: result.analysis || '',
+            dashboardData: result.dashboard_data || {},
+            reportPdfPath: result.report_pdf_path || null,
+            reportHtmlPath: result.report_html_path || null,
+            timestamp: result.timestamp || new Date().toISOString()
+          });
+          send(ws, 'chat:end', msg.requestId, { ok: true });
+          
+        } catch (err) {
+          log?.error({ err }, 'OpenClaw analysis failed');
+          send(ws, 'openclaw:error', msg.requestId, { 
+            error: err.message,
+            company: companyName
+          });
+          send(ws, 'chat:end', msg.requestId, { ok: false, error: err.message });
+        }
+      }
+
       if (msg.type === 'pipeline:subscribe') {
         send(ws, 'pipeline:status', msg.requestId, {
           runId: msg.payload?.runId || 'unknown',

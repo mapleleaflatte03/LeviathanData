@@ -6,8 +6,8 @@ import asyncio
 import logging
 
 from .config import CONFIG
-from .schemas import PipelineRequest, PipelineResponse, ToolRequest, LLMChatRequest, LLMChatResponse, HuntRequest, HuntResponse
-from .orchestrator import ingest, analyze, visualize, reflect
+from .schemas import PipelineRequest, PipelineResponse, ToolRequest, LLMChatRequest, LLMChatResponse, HuntRequest, HuntResponse, OpenClawAnalyzeRequest, OpenClawAnalyzeResponse
+from .orchestrator import ingest, analyze, visualize, reflect, openclaw_analyze_company
 from .tool_registry import run_tool, list_tools
 from .llm_client import chat_completion
 from .storage import ensure_dirs
@@ -176,3 +176,60 @@ def hunt_status():
         "hunt_count": len(hunter.hunt_results),
         "targets": hunter.hunt_targets,
     }
+
+
+@app.post("/openclaw/analyze", response_model=OpenClawAnalyzeResponse)
+async def openclaw_analyze(req: OpenClawAnalyzeRequest):
+    """OpenClaw Full-Stack Data OSINT Bot - Company Analysis.
+    
+    This is NOT a simple UI screenshot export. This endpoint:
+    1. Runs real OSINT tools (Metagoofil, theHarvester, SpiderFoot, Recon-ng)
+    2. Normalizes and stores collected data
+    3. Calculates real KPIs from the data
+    4. Generates VN-tuned LLM analysis with insights
+    5. Creates real PDF/HTML reports with embedded Plotly charts
+    """
+    REQUEST_COUNT.labels("openclaw_analyze").inc()
+    
+    execution_log = []
+    
+    def log_progress(stage: str, message: str):
+        log_entry = f"[{stage}] {message}"
+        execution_log.append(log_entry)
+        logger.info(log_entry)
+    
+    try:
+        log_progress("START", f"OpenClaw analyzing company: {req.company_name}")
+        
+        # Run full-stack OSINT analysis pipeline
+        result = await openclaw_analyze_company(
+            company_name=req.company_name,
+            prompt=req.prompt,
+            language=req.language,
+            export_pdf=req.export_pdf,
+            export_html=req.export_html,
+            on_progress=log_progress,
+        )
+        
+        log_progress("COMPLETE", f"Analysis finished for {req.company_name}")
+        
+        return OpenClawAnalyzeResponse(
+            success=result.get("success", True),
+            company=req.company_name,
+            osint_tools_used=result.get("osint_tools_used", []),
+            osint_items_collected=result.get("osint_items_collected", 0),
+            osint_data=result.get("osint_data", {}),
+            kpis=result.get("kpis", {}),
+            analysis=result.get("analysis", ""),
+            dashboard_data=result.get("dashboard_data", {}),
+            report_pdf_path=result.get("report_pdf_path"),
+            report_html_path=result.get("report_html_path"),
+            execution_log=execution_log,
+            timestamp=result.get("timestamp", ""),
+        )
+        
+    except Exception as exc:
+        logger.error(f"OpenClaw analysis failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

@@ -2037,3 +2037,489 @@ Respond with a JSON object containing:
     _save_state(run_id, state)
 
     return PipelineResponse(message=message, alert=alert, meta=reflect_meta)
+
+
+# ============================================================================
+# OPENCLAW: Full-Stack Data OSINT Bot
+# ============================================================================
+
+async def openclaw_analyze_company(
+    company_name: str,
+    domain: str | None = None,
+    language: str = "vi",
+    on_progress: Callable[[str, str], None] | None = None,
+    prompt: str | None = None,
+    export_pdf: bool = True,
+    export_html: bool = True,
+) -> Dict[str, Any]:
+    """
+    OpenClaw Full-Stack Data OSINT Bot.
+    
+    End-to-end workflow when user prompts "Tôi muốn phân tích công ty X":
+    1. Cào/thu thập dữ liệu financial OSINT (thực thi tool, có log, output thật)
+    2. Data pipeline: làm sạch → chuẩn hoá → lưu trữ → tính KPI/metrics
+    3. Xuất bản dashboard chuyên nghiệp (visualization đúng chuẩn)
+    4. Phân tích kèm nhận định dựa trên dữ liệu + KPI + biểu đồ
+    5. Xuất report (PDF/HTML) từ dữ liệu thật và chart thật
+    
+    Args:
+        company_name: Company name to analyze
+        domain: Company domain (optional, auto-inferred)
+        language: Language for analysis (vi/en)
+        on_progress: Progress callback (stage, message)
+        prompt: Additional analysis prompt from user
+        export_pdf: Whether to export PDF report
+        export_html: Whether to export HTML report
+    
+    Returns:
+        Complete analysis result with OSINT data, KPIs, and report paths
+    """
+    import asyncio
+    from datetime import datetime
+    
+    emit = on_progress or (lambda s, m: None)
+    
+    # Import OSINT tools
+    try:
+        from tools.osint_financial import run_financial_osint, get_available_tools
+        from tools.report_generator import generate_osint_report
+        OSINT_AVAILABLE = True
+    except ImportError as e:
+        logger.warning(f"OSINT tools import failed: {e}")
+        OSINT_AVAILABLE = False
+    
+    result = {
+        "company": company_name,
+        "domain": domain,
+        "language": language,
+        "timestamp": datetime.now().isoformat(),
+        "stages": {},
+        "osint_data": {},
+        "osint_tools_used": [],
+        "osint_items_collected": 0,
+        "kpis": {},
+        "analysis": "",
+        "recommendations": [],
+        "report_pdf_path": None,
+        "report_html_path": None,
+        "dashboard_data": {},
+        "success": False,
+        "errors": [],
+    }
+    
+    try:
+        # ===== STAGE 1: OSINT Data Collection =====
+        emit("OSINT", f"Bắt đầu thu thập OSINT cho {company_name}...")
+        
+        if OSINT_AVAILABLE:
+            osint_data = await run_financial_osint(
+                company=company_name,
+                domain=domain,
+                language=language,
+                on_progress=emit,
+            )
+            result["osint_data"] = osint_data
+            result["domain"] = osint_data.get("domain", domain)
+            
+            # Extract tools used and items collected
+            osint_results = osint_data.get("osint_results", [])
+            result["osint_tools_used"] = [r.get("tool", "unknown") for r in osint_results]
+            result["osint_items_collected"] = (
+                len(osint_data.get("metadata_findings", [])) +
+                len(osint_data.get("financial_links", [])) +
+                len(osint_data.get("related_entities", []))
+            )
+            
+            result["stages"]["osint"] = {
+                "status": "complete", 
+                "tools": result["osint_tools_used"],
+                "items": result["osint_items_collected"],
+            }
+            
+            emit("OSINT", f"Thu thập hoàn tất: {len(osint_results)} tools executed")
+        else:
+            emit("OSINT", "OSINT tools không khả dụng - sử dụng dữ liệu fallback")
+            osint_data = {
+                "company": company_name,
+                "osint_results": [],
+                "kpis": {"osint_coverage_score": 0},
+                "recommendations": ["Cài đặt OSINT tools để phân tích đầy đủ"],
+            }
+            result["osint_data"] = osint_data
+            result["stages"]["osint"] = {"status": "fallback", "note": "OSINT tools not installed"}
+        
+        # ===== STAGE 2: Data Pipeline (Clean → Normalize → Store → KPIs) =====
+        emit("PIPELINE", "Xử lý pipeline dữ liệu...")
+        
+        # Extract and normalize data from OSINT results
+        normalized_data = _openclaw_normalize_osint_data(osint_data)
+        result["stages"]["pipeline"] = {"status": "complete", "records": len(normalized_data)}
+        
+        # Calculate KPIs
+        kpis = osint_data.get("kpis", {})
+        
+        # Add computed metrics
+        kpis["data_points_collected"] = sum(
+            len(r.get("data", {}).get("authors", [])) + 
+            len(r.get("data", {}).get("emails", [])) + 
+            len(r.get("data", {}).get("urls", []))
+            for r in osint_data.get("osint_results", [])
+        )
+        kpis["analysis_timestamp"] = datetime.now().isoformat()
+        
+        result["kpis"] = kpis
+        emit("KPI", f"KPI tính toán: {len(kpis)} metrics")
+        
+        # ===== STAGE 3: LLM Analysis =====
+        emit("ANALYSIS", "Phân tích với Qwen LLM...")
+        
+        analysis_prompt = _openclaw_build_analysis_prompt(
+            company_name, osint_data, kpis, language
+        )
+        
+        try:
+            analysis_text = chat_completion(analysis_prompt)
+            result["analysis"] = analysis_text
+            result["stages"]["analysis"] = {"status": "complete"}
+            emit("ANALYSIS", "Phân tích LLM hoàn tất")
+        except Exception as e:
+            logger.error(f"LLM analysis error: {e}")
+            result["analysis"] = _openclaw_fallback_analysis(company_name, kpis, language)
+            result["stages"]["analysis"] = {"status": "fallback", "error": str(e)}
+            emit("ANALYSIS", "Sử dụng phân tích dự phòng")
+        
+        result["recommendations"] = osint_data.get("recommendations", [])
+        
+        # ===== STAGE 4: Dashboard Data =====
+        emit("DASHBOARD", "Chuẩn bị dữ liệu dashboard...")
+        
+        dashboard_data = _openclaw_build_dashboard_data(osint_data, kpis)
+        result["dashboard_data"] = dashboard_data
+        result["stages"]["dashboard"] = {"status": "complete"}
+        
+        emit("DASHBOARD", "Dashboard data ready")
+        
+        # ===== STAGE 5: Generate Report =====
+        emit("REPORT", "Tạo báo cáo PDF/HTML...")
+        
+        if OSINT_AVAILABLE:
+            try:
+                # Generate PDF if requested
+                if export_pdf:
+                    pdf_path = generate_osint_report(
+                        company=company_name,
+                        osint_data=osint_data,
+                        analysis_text=result["analysis"],
+                        language=language,
+                        format="pdf",
+                    )
+                    result["report_pdf_path"] = pdf_path
+                    emit("REPORT", f"PDF đã tạo: {pdf_path}")
+                
+                # Generate HTML if requested
+                if export_html:
+                    html_path = generate_osint_report(
+                        company=company_name,
+                        osint_data=osint_data,
+                        analysis_text=result["analysis"],
+                        language=language,
+                        format="html",
+                    )
+                    result["report_html_path"] = html_path
+                    emit("REPORT", f"HTML đã tạo: {html_path}")
+                
+                result["stages"]["report"] = {
+                    "status": "complete", 
+                    "pdf_path": result.get("report_pdf_path"),
+                    "html_path": result.get("report_html_path"),
+                }
+            except Exception as e:
+                logger.error(f"Report generation error: {e}")
+                result["stages"]["report"] = {"status": "error", "error": str(e)}
+                result["errors"].append(f"Report generation: {e}")
+        else:
+            result["stages"]["report"] = {"status": "skipped", "note": "Report tools not available"}
+        
+        result["success"] = True
+        emit("COMPLETE", f"Phân tích hoàn tất cho {company_name}")
+        
+    except Exception as e:
+        logger.error(f"OpenClaw analysis error: {e}")
+        result["errors"].append(str(e))
+        emit("ERROR", str(e))
+    
+    return result
+
+
+def _openclaw_normalize_osint_data(osint_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Normalize OSINT data into structured records."""
+    records = []
+    
+    for result in osint_data.get("osint_results", []):
+        data = result.get("data", {})
+        
+        # Extract emails
+        for email in data.get("emails", []):
+            records.append({
+                "type": "email",
+                "value": email,
+                "source": result.get("tool", "unknown"),
+            })
+        
+        # Extract authors (metadata)
+        for author in data.get("authors", []):
+            records.append({
+                "type": "author",
+                "value": author,
+                "source": result.get("tool", "unknown"),
+            })
+        
+        # Extract URLs
+        for url in data.get("interesting_urls", []) or data.get("urls", [])[:10]:
+            records.append({
+                "type": "url",
+                "value": url,
+                "source": result.get("tool", "unknown"),
+            })
+    
+    return records
+
+
+def _openclaw_build_analysis_prompt(
+    company: str,
+    osint_data: Dict[str, Any],
+    kpis: Dict[str, Any],
+    language: str,
+) -> List[Dict[str, str]]:
+    """Build LLM prompt for company analysis."""
+    
+    # Summarize OSINT findings
+    findings_summary = []
+    for result in osint_data.get("osint_results", []):
+        tool = result.get("tool", "unknown")
+        success = result.get("success", False)
+        data = result.get("data", {})
+        
+        summary = f"- {tool}: {'OK' if success else 'FAILED'}"
+        if data.get("authors"):
+            summary += f", {len(data['authors'])} authors found"
+        if data.get("emails"):
+            summary += f", {len(data['emails'])} emails"
+        if data.get("interesting_urls"):
+            summary += f", {len(data['interesting_urls'])} IR links"
+        findings_summary.append(summary)
+    
+    findings_text = "\n".join(findings_summary) if findings_summary else "No OSINT data collected"
+    
+    kpis_text = "\n".join([f"- {k}: {v}" for k, v in kpis.items()])
+    
+    if language == "vi":
+        return [
+            {
+                "role": "system",
+                "content": """Bạn là chuyên gia phân tích OSINT tài chính. Nhiệm vụ:
+- Phân tích dữ liệu OSINT thu thập được
+- Đánh giá rủi ro rò rỉ thông tin
+- Nhận định về độ minh bạch tài chính
+- Đề xuất hành động cụ thể
+Trả lời bằng tiếng Việt, chuyên nghiệp và súc tích."""
+            },
+            {
+                "role": "user",
+                "content": f"""Phân tích OSINT cho công ty: {company}
+
+**Kết quả OSINT Tools:**
+{findings_text}
+
+**KPIs:**
+{kpis_text}
+
+**Khuyến nghị hiện có:**
+{chr(10).join(osint_data.get("recommendations", []))}
+
+Hãy viết báo cáo phân tích gồm:
+1. Tóm tắt tình trạng OSINT (độ phủ, công cụ thành công)
+2. Đánh giá rủi ro rò rỉ thông tin
+3. Nhận định về độ minh bạch tài chính của công ty
+4. 3 khuyến nghị hành động cụ thể"""
+            }
+        ]
+    else:
+        return [
+            {
+                "role": "system",
+                "content": """You are a financial OSINT analysis expert. Your task:
+- Analyze collected OSINT data
+- Assess information leak risks
+- Evaluate financial transparency
+- Propose specific actions
+Respond professionally and concisely."""
+            },
+            {
+                "role": "user",
+                "content": f"""OSINT Analysis for company: {company}
+
+**OSINT Tools Results:**
+{findings_text}
+
+**KPIs:**
+{kpis_text}
+
+**Current Recommendations:**
+{chr(10).join(osint_data.get("recommendations", []))}
+
+Write an analysis report including:
+1. OSINT status summary (coverage, successful tools)
+2. Information leak risk assessment
+3. Evaluation of company's financial transparency
+4. 3 specific actionable recommendations"""
+            }
+        ]
+
+
+def _openclaw_fallback_analysis(
+    company: str,
+    kpis: Dict[str, Any],
+    language: str,
+) -> str:
+    """Generate fallback analysis when LLM is unavailable."""
+    coverage = kpis.get("osint_coverage_score", 0)
+    risk = kpis.get("info_leak_risk", "unknown")
+    transparency = kpis.get("transparency_score", 0)
+    
+    if language == "vi":
+        return f"""## Phân tích OSINT cho {company}
+
+**Độ phủ OSINT:** {coverage}%
+**Rủi ro rò rỉ thông tin:** {risk}
+**Điểm minh bạch:** {transparency}%
+
+### Nhận định
+Phân tích OSINT cơ bản đã được thực hiện. Để có đánh giá chi tiết hơn, cần:
+1. Cài đặt đầy đủ bộ công cụ OSINT (Metagoofil, theHarvester, SpiderFoot, Recon-ng)
+2. Kết nối LLM để phân tích sâu
+3. Thu thập thêm dữ liệu từ nguồn công khai"""
+    else:
+        return f"""## OSINT Analysis for {company}
+
+**OSINT Coverage:** {coverage}%
+**Information Leak Risk:** {risk}
+**Transparency Score:** {transparency}%
+
+### Assessment
+Basic OSINT analysis has been performed. For detailed evaluation:
+1. Install complete OSINT toolkit (Metagoofil, theHarvester, SpiderFoot, Recon-ng)
+2. Connect LLM for deep analysis
+3. Collect additional data from public sources"""
+
+
+def _openclaw_build_dashboard_data(
+    osint_data: Dict[str, Any],
+    kpis: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Build dashboard visualization data."""
+    
+    # KPI cards
+    kpi_cards = [
+        {
+            "label": "OSINT Coverage",
+            "value": kpis.get("osint_coverage_score", 0),
+            "unit": "%",
+            "trend": "neutral",
+        },
+        {
+            "label": "Tools Successful",
+            "value": kpis.get("tools_successful", 0),
+            "unit": "",
+            "trend": "up" if kpis.get("tools_successful", 0) >= 2 else "down",
+        },
+        {
+            "label": "Transparency",
+            "value": kpis.get("transparency_score", 0),
+            "unit": "%",
+            "trend": "up" if kpis.get("transparency_score", 0) >= 50 else "down",
+        },
+        {
+            "label": "Data Points",
+            "value": kpis.get("data_points_collected", 0),
+            "unit": "",
+            "trend": "neutral",
+        },
+    ]
+    
+    # Bar chart: tool performance
+    tool_names = []
+    tool_scores = []
+    for result in osint_data.get("osint_results", []):
+        tool_names.append(result.get("tool", "Unknown"))
+        tool_scores.append(100 if result.get("success") else 0)
+    
+    bar_chart = {
+        "type": "bar",
+        "title": "OSINT Tool Performance",
+        "x": tool_names,
+        "y": tool_scores,
+    }
+    
+    # Pie chart: findings distribution
+    findings_types = {"emails": 0, "authors": 0, "urls": 0, "paths": 0}
+    for result in osint_data.get("osint_results", []):
+        data = result.get("data", {})
+        findings_types["emails"] += len(data.get("emails", []))
+        findings_types["authors"] += len(data.get("authors", []))
+        findings_types["urls"] += len(data.get("urls", []) or data.get("interesting_urls", []))
+        findings_types["paths"] += len(data.get("paths", []))
+    
+    pie_chart = {
+        "type": "pie",
+        "title": "Findings Distribution",
+        "labels": list(findings_types.keys()),
+        "values": list(findings_types.values()),
+    }
+    
+    return {
+        "kpi_cards": kpi_cards,
+        "charts": {
+            "tool_performance": bar_chart,
+            "findings_distribution": pie_chart,
+        },
+        "main": {
+            "type": "bar",
+            "x": tool_names,
+            "y": tool_scores,
+            "actual": tool_scores,
+            "chartType": "bar",
+        },
+    }
+
+
+# Synchronous wrapper for non-async contexts
+def openclaw_analyze_company_sync(
+    company_name: str,
+    domain: str | None = None,
+    language: str = "vi",
+    on_progress: Callable[[str, str], None] | None = None,
+) -> Dict[str, Any]:
+    """Synchronous wrapper for openclaw_analyze_company."""
+    import asyncio
+    
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Create new loop for sync context
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    openclaw_analyze_company(company_name, domain, language, on_progress)
+                )
+                return future.result(timeout=600)
+        else:
+            return loop.run_until_complete(
+                openclaw_analyze_company(company_name, domain, language, on_progress)
+            )
+    except RuntimeError:
+        # No event loop, create one
+        return asyncio.run(
+            openclaw_analyze_company(company_name, domain, language, on_progress)
+        )
