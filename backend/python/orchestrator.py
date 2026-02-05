@@ -103,7 +103,7 @@ TARGET_HINTS = [
     "classlabel",
 ]
 MAX_TABULAR_ROWS = 60000
-MAX_TEXT_ROWS = 12000
+MAX_TEXT_ROWS = 3000
 SEED = 42
 KNOWN_DATASETS = {
     "air-quality",
@@ -639,6 +639,9 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
     cleaned = df[[text_col, target_col]].dropna().copy()
     cleaned[text_col] = cleaned[text_col].astype(str)
     cleaned[target_col] = cleaned[target_col].astype(str)
+    
+    # Truncate very long texts to save memory (keep first 1000 chars)
+    cleaned[text_col] = cleaned[text_col].str[:1000]
 
     if len(cleaned) > MAX_TEXT_ROWS:
         cleaned = cleaned.sample(n=MAX_TEXT_ROWS, random_state=SEED)
@@ -697,22 +700,18 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
     baseline_pred = np.array([majority_label] * len(y_test), dtype=object)
     baseline_acc = _accuracy(y_test, baseline_pred)
 
-    model = _train_text_nb(train_text, y_train)
-    pred_nb = _predict_text_nb(model, test_text)
-    nb_acc = _accuracy(y_test, pred_nb)
-
     refined = False
-    selected_name = "multinomial_nb"
-    selected_pred = pred_nb
-    selected_acc = nb_acc
-    model_candidates = ["majority_baseline", "multinomial_nb"]
+    selected_name = "majority_baseline"
+    selected_pred = baseline_pred
+    selected_acc = baseline_acc
+    model_candidates = ["majority_baseline"]
 
-    # Try sklearn TF-IDF pipelines for better accuracy
+    # Try sklearn FIRST (much faster than custom NB)
     if SKLEARN_AVAILABLE:
         try:
-            # TF-IDF + MultinomialNB
+            # TF-IDF + MultinomialNB (fast sklearn implementation)
             tfidf_nb = Pipeline([
-                ('tfidf', TfidfVectorizer(max_features=50000, ngram_range=(1, 2), stop_words='english', min_df=2, sublinear_tf=True)),
+                ('tfidf', TfidfVectorizer(max_features=10000, ngram_range=(1, 2), stop_words='english', min_df=3, sublinear_tf=True)),
                 ('clf', SklearnNB(alpha=0.1))
             ])
             tfidf_nb.fit(train_text, y_train)
@@ -728,8 +727,8 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
             
             # TF-IDF + LogisticRegression (often best for text)
             tfidf_lr = Pipeline([
-                ('tfidf', TfidfVectorizer(max_features=100000, ngram_range=(1, 3), stop_words='english', min_df=2, sublinear_tf=True)),
-                ('clf', LogisticRegression(max_iter=2000, C=5.0, random_state=42, solver='lbfgs'))
+                ('tfidf', TfidfVectorizer(max_features=15000, ngram_range=(1, 2), stop_words='english', min_df=3, sublinear_tf=True)),
+                ('clf', LogisticRegression(max_iter=500, C=5.0, random_state=42, solver='lbfgs'))
             ])
             tfidf_lr.fit(train_text, y_train)
             lr_pred = tfidf_lr.predict(test_text)
@@ -742,25 +741,27 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
                 selected_name = "tfidf_logistic_regression"
                 refined = True
             
-            # Try even higher C for tighter regularization
-            if selected_acc < 0.95:
-                tfidf_lr_tuned = Pipeline([
-                    ('tfidf', TfidfVectorizer(max_features=150000, ngram_range=(1, 4), min_df=1, sublinear_tf=True)),
-                    ('clf', LogisticRegression(max_iter=3000, C=10.0, random_state=42, solver='saga', penalty='l2'))
-                ])
-                tfidf_lr_tuned.fit(train_text, y_train)
-                tuned_pred = tfidf_lr_tuned.predict(test_text)
-                tuned_acc = _accuracy(y_test, tuned_pred.astype(object))
-                model_candidates.append("tfidf_lr_tuned")
-                if tuned_acc > selected_acc:
-                    selected_pred = tuned_pred.astype(object)
-                    selected_acc = tuned_acc
-                    selected_name = "tfidf_lr_tuned"
-                    refined = True
+            # Extra tuning disabled for speed
+            # Uncomment below for slightly better accuracy at cost of speed
+            # if selected_acc < 0.90:
+            #     tfidf_lr_tuned = Pipeline([...])
         except Exception as e:
             logger.debug(f"sklearn text classifier failed: {e}")
+    
+    # Only use slow custom NB as fallback when sklearn unavailable
+    if not SKLEARN_AVAILABLE or selected_acc < 0.6:
+        model = _train_text_nb(train_text, y_train)
+        pred_nb = _predict_text_nb(model, test_text)
+        nb_acc = _accuracy(y_test, pred_nb)
+        model_candidates.append("multinomial_nb")
+        
+        if nb_acc > selected_acc:
+            selected_pred = pred_nb
+            selected_acc = nb_acc
+            selected_name = "multinomial_nb"
 
-    if selected_acc < 0.7:
+    # Skip slow custom refined NB if sklearn gave good results
+    if not SKLEARN_AVAILABLE and selected_acc < 0.7:
         refined = True
         rare_cutoff = 3
         filtered_train = []
