@@ -15,6 +15,19 @@ from typing import Any, Dict, Iterable, List, Tuple, Optional, Callable, TypeVar
 import numpy as np
 import pandas as pd
 
+# Enhanced ML with sklearn
+SKLEARN_AVAILABLE = False
+try:
+    from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.naive_bayes import MultinomialNB as SklearnNB
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    pass
+
 from .config import CONFIG
 from .llm_client import chat_completion
 from .schemas import PipelineResponse
@@ -604,6 +617,44 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
     selected_name = "multinomial_nb"
     selected_pred = pred_nb
     selected_acc = nb_acc
+    model_candidates = ["majority_baseline", "multinomial_nb"]
+
+    # Try sklearn TF-IDF pipelines for better accuracy
+    if SKLEARN_AVAILABLE:
+        try:
+            # TF-IDF + MultinomialNB
+            tfidf_nb = Pipeline([
+                ('tfidf', TfidfVectorizer(max_features=30000, ngram_range=(1, 2), stop_words='english', min_df=2)),
+                ('clf', SklearnNB(alpha=0.1))
+            ])
+            tfidf_nb.fit(train_text, y_train)
+            sklearn_pred = tfidf_nb.predict(test_text)
+            sklearn_acc = _accuracy(y_test, sklearn_pred.astype(object))
+            model_candidates.append("tfidf_multinomial_nb")
+            
+            if sklearn_acc > selected_acc:
+                selected_pred = sklearn_pred.astype(object)
+                selected_acc = sklearn_acc
+                selected_name = "tfidf_multinomial_nb"
+                refined = True
+            
+            # TF-IDF + LogisticRegression (often best for text)
+            tfidf_lr = Pipeline([
+                ('tfidf', TfidfVectorizer(max_features=50000, ngram_range=(1, 3), stop_words='english', min_df=2)),
+                ('clf', LogisticRegression(max_iter=1000, C=1.0, random_state=42, solver='lbfgs'))
+            ])
+            tfidf_lr.fit(train_text, y_train)
+            lr_pred = tfidf_lr.predict(test_text)
+            lr_acc = _accuracy(y_test, lr_pred.astype(object))
+            model_candidates.append("tfidf_logistic_regression")
+            
+            if lr_acc > selected_acc:
+                selected_pred = lr_pred.astype(object)
+                selected_acc = lr_acc
+                selected_name = "tfidf_logistic_regression"
+                refined = True
+        except Exception as e:
+            logger.debug(f"sklearn text classifier failed: {e}")
 
     if selected_acc < 0.7:
         refined = True
@@ -619,6 +670,7 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
             model_refined = _train_text_nb(filtered_train, filtered_labels, max_features=15000, alpha=0.7)
             pred_refined = _predict_text_nb(model_refined, test_text)
             refined_acc = _accuracy(y_test, pred_refined)
+            model_candidates.append("multinomial_nb_refined")
             if refined_acc >= selected_acc:
                 selected_name = "multinomial_nb_refined"
                 selected_pred = pred_refined
@@ -642,7 +694,7 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
         "task": "classification",
         "targetColumn": str(target_col),
         "textColumn": str(text_col),
-        "modelCandidates": ["majority_baseline", "multinomial_nb", "multinomial_nb_refined"],
+        "modelCandidates": model_candidates,
         "selectedModel": selected_name,
         "baselineMetric": round(float(baseline_acc), 4),
         "primaryMetric": "accuracy",
@@ -693,12 +745,60 @@ def _run_tabular_model(x: np.ndarray, y: np.ndarray, task: str, target_col: str)
         best_pred = nb_pred
         best_acc = nb_acc
         refined = False
+        model_candidates = ["majority_baseline", "gaussian_nb"]
+
+        # Try sklearn classifiers for better accuracy
+        if SKLEARN_AVAILABLE:
+            try:
+                scaler = StandardScaler()
+                x_train_scaled = scaler.fit_transform(x_train)
+                x_test_scaled = scaler.transform(x_test)
+                
+                # RandomForest
+                rf = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+                rf.fit(x_train_scaled, y_train)
+                rf_pred = rf.predict(x_test_scaled).astype(str)
+                rf_acc = _accuracy(y_test, rf_pred)
+                model_candidates.append("random_forest")
+                if rf_acc > best_acc:
+                    best_name = "random_forest"
+                    best_pred = rf_pred
+                    best_acc = rf_acc
+                    refined = True
+                
+                # LogisticRegression
+                lr = LogisticRegression(max_iter=1000, random_state=42, solver='lbfgs')
+                lr.fit(x_train_scaled, y_train)
+                lr_pred = lr.predict(x_test_scaled).astype(str)
+                lr_acc = _accuracy(y_test, lr_pred)
+                model_candidates.append("logistic_regression")
+                if lr_acc > best_acc:
+                    best_name = "logistic_regression"
+                    best_pred = lr_pred
+                    best_acc = lr_acc
+                    refined = True
+                
+                # GradientBoosting for hard cases
+                if best_acc < 0.85:
+                    gb = GradientBoostingClassifier(n_estimators=100, max_depth=5, random_state=42)
+                    gb.fit(x_train_scaled, y_train)
+                    gb_pred = gb.predict(x_test_scaled).astype(str)
+                    gb_acc = _accuracy(y_test, gb_pred)
+                    model_candidates.append("gradient_boosting")
+                    if gb_acc > best_acc:
+                        best_name = "gradient_boosting"
+                        best_pred = gb_pred
+                        best_acc = gb_acc
+                        refined = True
+            except Exception as e:
+                logger.debug(f"sklearn classifier failed: {e}")
 
         if best_acc < 0.7:
             refined = True
             centroid_model = _train_centroid_classifier(x_train, y_train)
             centroid_pred = _predict_centroid_classifier(centroid_model, x_test).astype(str)
             centroid_acc = _accuracy(y_test, centroid_pred)
+            model_candidates.append("centroid_classifier")
             if centroid_acc >= best_acc:
                 best_name = "centroid_classifier"
                 best_pred = centroid_pred
@@ -716,7 +816,7 @@ def _run_tabular_model(x: np.ndarray, y: np.ndarray, task: str, target_col: str)
         return {
             "task": "classification",
             "targetColumn": str(target_col),
-            "modelCandidates": ["majority_baseline", "gaussian_nb", "centroid_classifier"],
+            "modelCandidates": model_candidates,
             "selectedModel": best_name,
             "baselineMetric": round(float(baseline_acc), 4),
             "primaryMetric": "accuracy",
