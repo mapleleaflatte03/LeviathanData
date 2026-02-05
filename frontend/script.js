@@ -189,12 +189,21 @@ const handleWsMessage = (msg) => {
     case 'pipeline:chart':
       updateChartData(msg.payload);
       break;
+    case 'pipeline:insight':
+      handleInsight(msg.payload);
+      break;
     case 'alert:new':
       pushAlert(msg.payload);
       break;
     case 'swarm:log':
       logToConsole(msg.payload.level, msg.payload.stage, msg.payload.message);
       break;
+  }
+};
+
+const handleInsight = (payload) => {
+  if (payload.insight) {
+    logToConsole('info', 'INSIGHT', payload.insight);
   }
 };
 
@@ -464,6 +473,7 @@ const loadAlerts = async () => {
 
 // ===== CHARTS =====
 const initCharts = () => {
+  // Show placeholder until real data arrives
   renderChart('main');
 };
 
@@ -487,39 +497,84 @@ const renderChart = (type) => {
   };
   
   let data;
+  const chartData = state.chartData[type];
   
-  if (type === 'main' || !state.chartData[type]) {
-    // Demo data
-    const x = Array.from({ length: 20 }, (_, i) => `Day ${i + 1}`);
-    const y = Array.from({ length: 20 }, () => Math.floor(Math.random() * 100) + 20);
+  if (chartData) {
+    // Use real data from pipeline
+    if (chartData.chartType === 'bar' && chartData.x) {
+      // Bar chart with actual vs predicted
+      const traces = [{
+        x: chartData.x,
+        y: chartData.actual || chartData.x.map(() => 0),
+        name: 'Actual',
+        type: 'bar',
+        marker: { color: '#0088aa', line: { color: '#00aacc', width: 1 } }
+      }];
+      if (chartData.predicted?.length) {
+        traces.push({
+          x: chartData.x,
+          y: chartData.predicted,
+          name: 'Predicted',
+          type: 'bar',
+          marker: { color: '#00cc66', line: { color: '#00ff88', width: 1 } }
+        });
+      }
+      data = traces;
+    } else if (chartData.chartType === 'line') {
+      // Line chart for regression/time-series
+      const x = Array.from({ length: chartData.actual?.length || 0 }, (_, i) => i + 1);
+      data = [{
+        x: x,
+        y: chartData.actual,
+        name: 'Actual',
+        type: 'scatter',
+        mode: 'lines+markers',
+        marker: { color: '#0088aa' },
+        line: { color: '#0088aa' }
+      }];
+      if (chartData.predicted?.length) {
+        data.push({
+          x: x,
+          y: chartData.predicted,
+          name: 'Predicted',
+          type: 'scatter',
+          mode: 'lines+markers',
+          marker: { color: '#00cc66' },
+          line: { color: '#00cc66', dash: 'dash' }
+        });
+      }
+    } else if (chartData.svg) {
+      // SVG from pipeline visualization
+      plotlyChart.innerHTML = chartData.svg;
+      return;
+    } else {
+      // Fallback - show whatever data we have
+      data = [{
+        x: chartData.x || [],
+        y: chartData.y || chartData.actual || [],
+        type: chartData.chartType || 'bar',
+        marker: { color: '#0088aa' }
+      }];
+    }
+  } else {
+    // No data yet - show "awaiting upload" placeholder
     data = [{
-      x, y,
+      x: ['Upload a file'],
+      y: [0],
       type: 'bar',
-      marker: {
-        color: y.map(v => v > 70 ? '#00cc66' : v > 40 ? '#0088aa' : '#ff4444'),
-        line: { color: '#00aacc', width: 1 }
-      }
+      marker: { color: 'rgba(0,136,170,0.3)' },
+      text: ['Awaiting data...'],
+      textposition: 'inside',
+      hoverinfo: 'none'
     }];
-  } else if (type === 'distribution') {
-    const values = Array.from({ length: 100 }, () => Math.random() * 100);
-    data = [{
-      x: values,
-      type: 'histogram',
-      marker: { color: '#0088aa' },
-      nbinsx: 20
-    }];
-  } else if (type === 'correlation') {
-    const x = Array.from({ length: 50 }, () => Math.random() * 100);
-    const y = x.map(v => v * 0.8 + Math.random() * 30);
-    data = [{
-      x, y,
-      mode: 'markers',
-      type: 'scatter',
-      marker: {
-        color: '#00aacc',
-        size: 8,
-        opacity: 0.7
-      }
+    layout.annotations = [{
+      text: 'Upload a file to see real data visualization',
+      showarrow: false,
+      x: 0.5,
+      y: 0.5,
+      xref: 'paper',
+      yref: 'paper',
+      font: { size: 14, color: 'rgba(216,243,255,0.5)' }
     }];
   }
   
@@ -527,11 +582,16 @@ const renderChart = (type) => {
 };
 
 const updateChartData = (payload) => {
-  state.chartData[payload.type] = payload.data;
-  if (state.currentChart === payload.type) {
-    renderChart(payload.type);
+  if (payload.type && payload.data) {
+    state.chartData[payload.type] = payload.data;
+  } else if (payload.data) {
+    state.chartData['main'] = payload.data;
+  } else {
+    // Direct payload is the data
+    state.chartData['main'] = payload;
   }
-  logToConsole('viz', 'VIZ', `Chart "${payload.type}" updated`);
+  renderChart(state.currentChart);
+  logToConsole('viz', 'VIZ', `Chart updated with real data`);
 };
 
 // ===== MONSTER EFFECTS =====
