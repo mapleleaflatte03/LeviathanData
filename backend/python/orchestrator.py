@@ -4,9 +4,12 @@ import json
 import math
 import os
 import re
+import signal
+import threading
 from collections import Counter
+from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple, Optional
+from typing import Any, Dict, Iterable, List, Tuple, Optional, Callable, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -15,10 +18,44 @@ from .config import CONFIG
 from .llm_client import chat_completion
 from .schemas import PipelineResponse
 
-# Hugging Face integration
+# Hugging Face integration with timeout protection
 HF_AVAILABLE = False
 HF_IMAGE_CLASSIFIER = None
 HF_TEXT_CLASSIFIER = None
+HF_LOAD_TIMEOUT = 30  # seconds timeout for model loading
+HF_INFERENCE_TIMEOUT = 10  # seconds timeout per inference batch
+HF_DISABLED_UNTIL = 0  # Unix timestamp - skip HF if recent failure
+
+T = TypeVar('T')
+
+
+def _with_timeout(timeout_sec: float, default: T) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    """Decorator to add timeout to a function. Returns default on timeout."""
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> T:
+            result: List[T] = [default]
+            exception: List[Optional[Exception]] = [None]
+            
+            def target():
+                try:
+                    result[0] = func(*args, **kwargs)
+                except Exception as e:
+                    exception[0] = e
+            
+            thread = threading.Thread(target=target, daemon=True)
+            thread.start()
+            thread.join(timeout=timeout_sec)
+            
+            if thread.is_alive():
+                # Timeout occurred - HF download/inference stuck
+                return default
+            if exception[0] is not None:
+                return default
+            return result[0]
+        return wrapper
+    return decorator
+
 
 try:
     from transformers import pipeline as hf_pipeline
@@ -871,21 +908,38 @@ def _collect_labeled_images(path: Path, max_per_class: int = 500, dataset_name: 
 
 
 def _get_hf_image_classifier():
-    """Initialize or return cached HF image classifier."""
-    global HF_IMAGE_CLASSIFIER
+    """Initialize or return cached HF image classifier with timeout protection."""
+    global HF_IMAGE_CLASSIFIER, HF_DISABLED_UNTIL
+    import time
+    
     if not HF_AVAILABLE:
         return None
+    
+    # Skip if recently failed (backoff for 5 minutes)
+    if time.time() < HF_DISABLED_UNTIL:
+        return None
+    
     if HF_IMAGE_CLASSIFIER is not None:
         return HF_IMAGE_CLASSIFIER
-    try:
-        # Use ViT for image classification - cats vs dogs compatible
-        HF_IMAGE_CLASSIFIER = hf_pipeline(
+    
+    @_with_timeout(HF_LOAD_TIMEOUT, None)
+    def _load_classifier():
+        return hf_pipeline(
             "image-classification",
             model="google/vit-base-patch16-224",
             device=-1,  # CPU
         )
+    
+    try:
+        classifier = _load_classifier()
+        if classifier is None:
+            # Timeout or error - disable HF temporarily
+            HF_DISABLED_UNTIL = time.time() + 300  # 5 minute backoff
+            return None
+        HF_IMAGE_CLASSIFIER = classifier
         return HF_IMAGE_CLASSIFIER
     except Exception:
+        HF_DISABLED_UNTIL = time.time() + 300
         return None
 
 
@@ -988,21 +1042,38 @@ def _collect_image_paths_for_hf(path: Path, dataset_name: str, max_per_class: in
 
 
 def _get_hf_text_classifier():
-    """Initialize or return cached HF text classifier for spam detection."""
-    global HF_TEXT_CLASSIFIER
+    """Initialize or return cached HF text classifier for spam detection with timeout protection."""
+    global HF_TEXT_CLASSIFIER, HF_DISABLED_UNTIL
+    import time
+    
     if not HF_AVAILABLE:
         return None
+    
+    # Skip if recently failed (backoff for 5 minutes)
+    if time.time() < HF_DISABLED_UNTIL:
+        return None
+    
     if HF_TEXT_CLASSIFIER is not None:
         return HF_TEXT_CLASSIFIER
-    try:
-        # Use a lightweight sentiment/spam classifier
-        HF_TEXT_CLASSIFIER = hf_pipeline(
+    
+    @_with_timeout(HF_LOAD_TIMEOUT, None)
+    def _load_classifier():
+        return hf_pipeline(
             "text-classification",
             model="mrm8488/bert-tiny-finetuned-sms-spam-detection",
             device=-1,  # CPU
         )
+    
+    try:
+        classifier = _load_classifier()
+        if classifier is None:
+            # Timeout or error - disable HF temporarily
+            HF_DISABLED_UNTIL = time.time() + 300  # 5 minute backoff
+            return None
+        HF_TEXT_CLASSIFIER = classifier
         return HF_TEXT_CLASSIFIER
     except Exception:
+        HF_DISABLED_UNTIL = time.time() + 300
         return None
 
 
