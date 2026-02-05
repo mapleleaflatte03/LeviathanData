@@ -343,6 +343,423 @@ button:active { transform: translateY(0); }
 
 .action-icon { font-size: 1.5rem; }
 
+/* ===== MONSTER SVG ICONS ===== */
+.svg-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.monster-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.action-btn .svg-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.card-icon.svg-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.stage-icon.svg-icon {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+}
+
+/* ===== EYE ORBS ===== */
+.eye-orb, .hunt-eye, .mini-eye-orb, .proj-eye, .vortex-eye, .data-eye {
+  animation: eyeGlow 2s ease-in-out infinite;
+}
+
+@keyframes eyeGlow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(255, 0, 0, 0.6)); }
+  50% { filter: drop-shadow(0 0 12px rgba(255, 0, 0, 1)); }
+}
+
+.action-btn:hover .eye-orb,
+.action-btn:hover .hunt-eye,
+.action-btn.active .eye-orb {
+  animation: eyeGlowIntense 0.8s ease-in-out infinite;
+}
+
+@keyframes eyeGlowIntense {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 0, 0, 0.8)); transform: scale(1); }
+  50% { filter: drop-shadow(0 0 20px rgba(255, 0, 0, 1)); transform: scale(1.1); }
+}
+
+/* ===== SCANNING ANIMATION ===== */
+.scan-line {
+  animation: scanMove 2s linear infinite;
+}
+
+.scan-line.s2 {
+  animation-delay: 0.3s;
+}
+
+@keyframes scanMove {
+  0% { transform: translateY(0); opacity: 0.6; }
+  50% { transform: translateY(20px); opacity: 0.2; }
+  100% { transform: translateY(40px); opacity: 0; }
+}
+
+.scan-t1, .scan-t2, .scan-t3 {
+  animation: tentacleScan 3s ease-in-out infinite;
+}
+
+.scan-t2 { animation-delay: 0.5s; }
+.scan-t3 { animation-delay: 1s; }
+
+@keyframes tentacleScan {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(2px) rotate(3deg); }
+  75% { transform: translateY(-2px) rotate(-3deg); }
+}
+
+/* ===== WRAPPING TENTACLES ===== */
+.wrap-t1, .wrap-t2, .wrap-t3 {
+  animation: tentacleWrap 4s ease-in-out infinite;
+}
+
+.wrap-t2 { animation-delay: 0.5s; animation-direction: reverse; }
+.wrap-t3 { animation-delay: 1s; }
+
+@keyframes tentacleWrap {
+  0%, 100% { transform: scaleY(1) translateX(0); }
+  50% { transform: scaleY(1.05) translateX(1px); }
+}
+
+.action-btn:hover .wrap-t1,
+.action-btn:hover .wrap-t2 {
+  animation: tentacleWrapHover 1s ease-in-out infinite;
+}
+
+@keyframes tentacleWrapHover {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(2px); }
+}
+
+/* ===== FANGS ANIMATION ===== */
+.fang {
+  animation: fangBite 3s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+.fang.f2 { animation-delay: 0.2s; }
+.fang.f3 { animation-delay: 0.4s; }
+
+@keyframes fangBite {
+  0%, 100% { transform: scaleY(1); }
+  10% { transform: scaleY(1.2); }
+  20% { transform: scaleY(1); }
+}
+
+.action-btn:hover .fang {
+  animation: fangBiteHover 0.5s ease-in-out infinite;
+}
+
+@keyframes fangBiteHover {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.3); }
+}
+
+.drip {
+  animation: dripping 2s ease-in-out infinite;
+}
+
+@keyframes dripping {
+  0% { transform: translateY(0); opacity: 1; }
+  50% { transform: translateY(6px); opacity: 0.5; }
+  100% { transform: translateY(12px); opacity: 0; }
+}
+
+/* ===== WAVE DATA ===== */
+.wave-data, .wave-data2 {
+  animation: dataWave 4s ease-in-out infinite;
+}
+
+.wave-data2 { animation-delay: 0.5s; }
+
+@keyframes dataWave {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-2px); }
+  75% { transform: translateY(2px); }
+}
+
+/* ===== ALERT WAVES ===== */
+.alert-wave {
+  animation: alertWaveExpand 2s ease-out infinite;
+  transform-origin: center;
+}
+
+.alert-wave.w2 {
+  animation-delay: 0.5s;
+}
+
+@keyframes alertWaveExpand {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(1.2); opacity: 0; }
+}
+
+.slit-pupil {
+  animation: slitLook 4s ease-in-out infinite;
+}
+
+@keyframes slitLook {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(0.6); }
+}
+
+.detect-t1, .detect-t2 {
+  animation: detectPulse 1.5s ease-in-out infinite;
+}
+
+.detect-t2 { animation-delay: 0.3s; }
+
+@keyframes detectPulse {
+  0%, 100% { stroke-width: 2; opacity: 1; }
+  50% { stroke-width: 3; opacity: 0.7; }
+}
+
+/* ===== VORTEX ANIMATION ===== */
+.vortex-svg {
+  animation: vortexSpin 20s linear infinite;
+}
+
+@keyframes vortexSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.vortex-spiral {
+  animation: spiralPulse 3s ease-in-out infinite;
+}
+
+.vortex-spiral.s2 { animation-delay: 0.5s; }
+.vortex-spiral.s3 { animation-delay: 1s; }
+.vortex-spiral.s4 { animation-delay: 1.5s; }
+
+@keyframes spiralPulse {
+  0%, 100% { stroke-width: 2; opacity: 0.8; }
+  50% { stroke-width: 3; opacity: 1; }
+}
+
+.particle {
+  animation: particlePull 3s ease-in infinite;
+}
+
+.particle.p2 { animation-delay: 1s; }
+.particle.p3 { animation-delay: 2s; }
+
+@keyframes particlePull {
+  0% { transform: translate(0, 0); opacity: 1; }
+  100% { transform: translate(calc(32px - 100%), calc(32px - 100%)); opacity: 0; }
+}
+
+.upload-icon.svg-icon {
+  width: 80px;
+  height: 80px;
+}
+
+.upload-zone:hover .vortex-svg {
+  animation: vortexSpinFast 8s linear infinite;
+}
+
+@keyframes vortexSpinFast {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.upload-zone:hover .vortex-eye {
+  animation: eyeGlowIntense 0.8s ease-in-out infinite;
+}
+
+/* ===== PIPELINE STAGE ICONS ===== */
+.pull-tentacle {
+  animation: pullMotion 2s ease-in-out infinite;
+}
+
+.pull-tentacle.t2 {
+  animation-delay: 0.5s;
+}
+
+@keyframes pullMotion {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  50% { transform: translateX(2px) rotate(5deg); }
+}
+
+.brain-tentacle {
+  animation: brainThink 2s ease-in-out infinite;
+}
+
+.brain-tentacle.b2 { animation-delay: 0.2s; }
+.brain-tentacle.b3 { animation-delay: 0.4s; }
+.brain-tentacle.b4 { animation-delay: 0.6s; }
+
+@keyframes brainThink {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.1); }
+}
+
+.spark {
+  animation: sparkle 1.5s ease-in-out infinite;
+}
+
+.spark.s2 { animation-delay: 0.3s; }
+.spark.s3 { animation-delay: 0.6s; }
+
+@keyframes sparkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.5); }
+}
+
+.proj-chart, .proj-line {
+  animation: projectBeam 2s ease-in-out infinite;
+}
+
+.proj-chart.c2 {
+  animation-delay: 0.3s;
+}
+
+@keyframes projectBeam {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; stroke-width: 2; }
+}
+
+.mirror-t.left {
+  animation: mirrorWave 3s ease-in-out infinite;
+}
+
+.mirror-t.right {
+  animation: mirrorWave 3s ease-in-out infinite reverse;
+}
+
+@keyframes mirrorWave {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(1.1); }
+}
+
+/* ===== CONSOLE TENTACLES ===== */
+.console-tent {
+  animation: consoleTentWave 2.5s ease-in-out infinite;
+}
+
+.console-tent.t2 { animation-delay: 0.2s; }
+.console-tent.t3 { animation-delay: 0.4s; }
+.console-tent.t4 { animation-delay: 0.6s; }
+.console-tent.t5 { animation-delay: 0.8s; }
+
+@keyframes consoleTentWave {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50% { transform: rotate(3deg) translateY(1px); }
+}
+
+/* ===== ALERTS ICON ===== */
+.alert-pulse {
+  animation: alertPulseGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes alertPulseGlow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(255, 0, 0, 0.6)); transform: scale(1); }
+  50% { filter: drop-shadow(0 0 15px rgba(255, 0, 0, 1)); transform: scale(1.1); }
+}
+
+.grab-tent {
+  animation: grabMotion 2s ease-in-out infinite;
+}
+
+.grab-tent.g2 { animation-delay: 0.3s; }
+.grab-tent.g3 { animation-delay: 0.6s; }
+
+@keyframes grabMotion {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* ===== CHARTS ICON ===== */
+.chart-tentacle {
+  animation: chartWiggle 3s ease-in-out infinite;
+}
+
+@keyframes chartWiggle {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-1px); }
+  75% { transform: translateY(1px); }
+}
+
+.chart-node {
+  animation: nodeGlow 2s ease-in-out infinite;
+}
+
+@keyframes nodeGlow {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(255, 0, 0, 0.5)); }
+  50% { filter: drop-shadow(0 0 6px rgba(255, 0, 0, 0.9)); }
+}
+
+/* ===== CHAT EYES ===== */
+.chat-eye {
+  animation: chatEyeLook 4s ease-in-out infinite;
+}
+
+@keyframes chatEyeLook {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(1px); }
+  75% { transform: translateX(-1px); }
+}
+
+/* ===== WAVE PATH ===== */
+.wave-path {
+  animation: wavePathMove 3s ease-in-out infinite;
+}
+
+.wave-path.w2 {
+  animation-delay: 0.5s;
+}
+
+@keyframes wavePathMove {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(2px); }
+}
+
+/* ===== ACTIVE STATE ENHANCEMENTS ===== */
+.pipeline-stage.active .stage-icon svg {
+  animation: stageActive 1s ease-in-out infinite;
+}
+
+@keyframes stageActive {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(0, 136, 170, 0.5)); }
+  50% { filter: drop-shadow(0 0 10px rgba(0, 136, 170, 1)); }
+}
+
+.pipeline-stage.complete .stage-icon svg {
+  filter: drop-shadow(0 0 5px rgba(0, 200, 100, 0.7));
+}
+
+/* ===== HOVER BACKGROUND TENTACLES ===== */
+.action-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M10 90 Q0 70 10 50 Q20 30 10 10' stroke='%230088aa' stroke-width='2' fill='none' opacity='0.2'/%3E%3Cpath d='M90 90 Q100 70 90 50 Q80 30 90 10' stroke='%230088aa' stroke-width='2' fill='none' opacity='0.2'/%3E%3C/svg%3E") center/cover no-repeat;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.action-btn:hover::before {
+  opacity: 1;
+}
+
+.action-btn {
+  position: relative;
+  overflow: hidden;
+}
+
 /* ===== DASHBOARD GRID ===== */
 .dashboard-grid {
   display: grid;

@@ -83,23 +83,140 @@
       <!-- Quick Actions Bar -->
       <div class="quick-actions">
         <button class="action-btn" data-action="auto-eda">
-          <span class="action-icon">📊</span>
+          <span class="action-icon svg-icon eda-icon">
+            <svg viewBox="0 0 48 48" class="monster-svg">
+              <!-- Glowing red eye with scanning tentacles -->
+              <defs>
+                <radialGradient id="eyeGlowEda" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#ff3333"/>
+                  <stop offset="60%" stop-color="#cc0000"/>
+                  <stop offset="100%" stop-color="#660000"/>
+                </radialGradient>
+                <filter id="glowEda">
+                  <feGaussianBlur stdDeviation="2" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+              <!-- Scanning tentacles -->
+              <path class="tentacle scan-t1" d="M10 24 Q5 20 3 28 Q1 36 8 38" stroke="#0088aa" stroke-width="2" fill="none" opacity="0.7"/>
+              <path class="tentacle scan-t2" d="M38 24 Q43 20 45 28 Q47 36 40 38" stroke="#0088aa" stroke-width="2" fill="none" opacity="0.7"/>
+              <path class="tentacle scan-t3" d="M24 38 Q20 42 24 46 Q28 42 24 38" stroke="#0088aa" stroke-width="2" fill="none" opacity="0.6"/>
+              <!-- Central eye -->
+              <circle cx="24" cy="24" r="12" fill="url(#eyeGlowEda)" filter="url(#glowEda)" class="eye-orb"/>
+              <circle cx="24" cy="24" r="5" fill="#000" class="pupil"/>
+              <circle cx="22" cy="22" r="2" fill="rgba(255,255,255,0.4)"/>
+              <!-- Scan lines -->
+              <line class="scan-line" x1="12" y1="10" x2="36" y2="10" stroke="#ff3333" stroke-width="1" opacity="0.6"/>
+              <line class="scan-line s2" x1="12" y1="14" x2="36" y2="14" stroke="#ff3333" stroke-width="1" opacity="0.4"/>
+            </svg>
+          </span>
           <span>Auto EDA</span>
         </button>
         <button class="action-btn" data-action="classify-images">
-          <span class="action-icon">🖼️</span>
+          <span class="action-icon svg-icon classify-icon">
+            <svg viewBox="0 0 48 48" class="monster-svg">
+              <!-- Tentacle wrapping frame -->
+              <defs>
+                <linearGradient id="tentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#0088aa"/>
+                  <stop offset="100%" stop-color="#004466"/>
+                </linearGradient>
+              </defs>
+              <!-- Image frame -->
+              <rect x="12" y="12" width="24" height="24" rx="2" fill="none" stroke="#0088aa" stroke-width="2" opacity="0.5"/>
+              <!-- Wrapping tentacles -->
+              <path class="tentacle wrap-t1" d="M8 8 Q4 12 6 20 Q8 28 4 36 Q2 40 8 44" stroke="url(#tentGrad)" stroke-width="3" fill="none" stroke-linecap="round"/>
+              <path class="tentacle wrap-t2" d="M40 8 Q44 12 42 20 Q40 28 44 36 Q46 40 40 44" stroke="url(#tentGrad)" stroke-width="3" fill="none" stroke-linecap="round"/>
+              <path class="tentacle wrap-t3" d="M16 6 Q24 2 32 6" stroke="url(#tentGrad)" stroke-width="2" fill="none"/>
+              <!-- Small eye in center -->
+              <circle cx="24" cy="24" r="6" fill="#001122" stroke="#0088aa" stroke-width="1"/>
+              <circle cx="24" cy="24" r="3" fill="#ff3333" class="mini-eye-orb"/>
+              <circle cx="24" cy="24" r="1" fill="#000"/>
+            </svg>
+          </span>
           <span>Classify Images</span>
         </button>
         <button class="action-btn" data-action="spam-detect">
-          <span class="action-icon">📧</span>
+          <span class="action-icon svg-icon spam-icon">
+            <svg viewBox="0 0 48 48" class="monster-svg">
+              <!-- Fanged mouth biting envelope -->
+              <defs>
+                <filter id="glowSpam">
+                  <feGaussianBlur stdDeviation="1.5" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+              <!-- Envelope -->
+              <path d="M8 16 L24 28 L40 16 L40 36 L8 36 Z" fill="#003344" stroke="#0088aa" stroke-width="1.5"/>
+              <path d="M8 16 L24 28 L40 16" fill="none" stroke="#0088aa" stroke-width="1.5"/>
+              <!-- Monster mouth -->
+              <ellipse cx="24" cy="14" rx="14" ry="8" fill="#220000" stroke="#cc0000" stroke-width="2" filter="url(#glowSpam)"/>
+              <!-- Fangs -->
+              <polygon class="fang f1" points="14,14 16,22 18,14" fill="#ffffff"/>
+              <polygon class="fang f2" points="22,14 24,24 26,14" fill="#ffffff"/>
+              <polygon class="fang f3" points="30,14 32,22 34,14" fill="#ffffff"/>
+              <!-- Dripping -->
+              <circle class="drip" cx="24" cy="26" r="1.5" fill="#ff3333"/>
+            </svg>
+          </span>
           <span>Spam Detection</span>
         </button>
         <button class="action-btn" data-action="time-series">
-          <span class="action-icon">📈</span>
+          <span class="action-icon svg-icon timeseries-icon">
+            <svg viewBox="0 0 48 48" class="monster-svg">
+              <!-- Wavy tentacles along timeline -->
+              <defs>
+                <linearGradient id="timeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#004466"/>
+                  <stop offset="50%" stop-color="#0088aa"/>
+                  <stop offset="100%" stop-color="#00ccee"/>
+                </linearGradient>
+              </defs>
+              <!-- Timeline base -->
+              <line x1="4" y1="36" x2="44" y2="36" stroke="#0088aa" stroke-width="2" opacity="0.5"/>
+              <!-- Time markers -->
+              <circle cx="10" cy="36" r="2" fill="#0088aa"/>
+              <circle cx="24" cy="36" r="2" fill="#0088aa"/>
+              <circle cx="38" cy="36" r="2" fill="#0088aa"/>
+              <!-- Wavy tentacles as data -->
+              <path class="tentacle wave-data" d="M6 28 Q12 18 18 24 Q24 30 30 20 Q36 10 42 16" stroke="url(#timeGrad)" stroke-width="3" fill="none" stroke-linecap="round"/>
+              <path class="tentacle wave-data2" d="M6 32 Q12 26 18 30 Q24 34 30 28 Q36 22 42 26" stroke="#ff3333" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.6"/>
+              <!-- Eye nodes -->
+              <circle cx="18" cy="24" r="3" fill="#ff3333" class="data-eye"/>
+              <circle cx="30" cy="20" r="3" fill="#ff3333" class="data-eye"/>
+              <circle cx="18" cy="24" r="1" fill="#000"/>
+              <circle cx="30" cy="20" r="1" fill="#000"/>
+            </svg>
+          </span>
           <span>Time-Series</span>
         </button>
         <button class="action-btn" data-action="anomaly-hunt">
-          <span class="action-icon">🔍</span>
+          <span class="action-icon svg-icon anomaly-icon">
+            <svg viewBox="0 0 48 48" class="monster-svg">
+              <!-- Pulsing red eye with alert waves -->
+              <defs>
+                <radialGradient id="alertEye" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#ff4444"/>
+                  <stop offset="50%" stop-color="#cc0000"/>
+                  <stop offset="100%" stop-color="#440000"/>
+                </radialGradient>
+                <filter id="glowAlert">
+                  <feGaussianBlur stdDeviation="3" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+              <!-- Alert waves -->
+              <circle class="alert-wave w1" cx="24" cy="24" r="18" fill="none" stroke="#ff3333" stroke-width="1"/>
+              <circle class="alert-wave w2" cx="24" cy="24" r="22" fill="none" stroke="#ff3333" stroke-width="1"/>
+              <!-- Central hunting eye -->
+              <circle cx="24" cy="24" r="10" fill="url(#alertEye)" filter="url(#glowAlert)" class="hunt-eye"/>
+              <ellipse cx="24" cy="24" rx="3" ry="6" fill="#000" class="slit-pupil"/>
+              <circle cx="22" cy="22" r="2" fill="rgba(255,255,255,0.3)"/>
+              <!-- Detector tentacles -->
+              <path class="tentacle detect-t1" d="M8 18 Q4 24 8 30" stroke="#ff3333" stroke-width="2" fill="none"/>
+              <path class="tentacle detect-t2" d="M40 18 Q44 24 40 30" stroke="#ff3333" stroke-width="2" fill="none"/>
+            </svg>
+          </span>
           <span>Anomaly Hunt</span>
         </button>
       </div>
@@ -108,7 +225,15 @@
         <!-- Chat Panel -->
         <div class="card chat-card">
           <h3>
-            <span class="card-icon">💬</span>
+            <span class="card-icon svg-icon chat-icon">
+              <svg viewBox="0 0 24 24" class="monster-svg">
+                <path d="M4 4h16v12H6l-2 4v-4H4V4z" fill="#001a2c" stroke="#0088aa" stroke-width="1.5"/>
+                <circle cx="8" cy="10" r="2" fill="#ff3333" class="chat-eye"/>
+                <circle cx="16" cy="10" r="2" fill="#ff3333" class="chat-eye"/>
+                <circle cx="8" cy="10" r="0.8" fill="#000"/>
+                <circle cx="16" cy="10" r="0.8" fill="#000"/>
+              </svg>
+            </span>
             Swarm Chat
           </h3>
           <div class="chat" id="chatLog">
@@ -138,7 +263,20 @@
         <!-- Upload Zone -->
         <div class="card upload-card">
           <h3>
-            <span class="card-icon">🌊</span>
+            <span class="card-icon svg-icon ingest-bay-icon">
+              <svg viewBox="0 0 24 24" class="monster-svg">
+                <defs>
+                  <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#0088aa"/>
+                    <stop offset="100%" stop-color="#004466"/>
+                  </linearGradient>
+                </defs>
+                <path class="wave-path" d="M2 12 Q6 8 12 12 Q18 16 22 12" stroke="url(#waveGrad)" stroke-width="2" fill="none"/>
+                <path class="wave-path w2" d="M2 16 Q6 12 12 16 Q18 20 22 16" stroke="url(#waveGrad)" stroke-width="2" fill="none" opacity="0.6"/>
+                <circle cx="12" cy="8" r="3" fill="#ff3333"/>
+                <circle cx="12" cy="8" r="1" fill="#000"/>
+              </svg>
+            </span>
             Ingestion Bay
           </h3>
           <div class="upload-zone" id="uploadZone">
@@ -148,7 +286,31 @@
               <div class="wave w3"></div>
             </div>
             <div class="upload-content">
-              <div class="upload-icon">📁</div>
+              <div class="upload-icon svg-icon vortex-icon">
+                <svg viewBox="0 0 64 64" class="monster-svg vortex-svg">
+                  <!-- Deep sea vortex pull -->
+                  <defs>
+                    <radialGradient id="vortexGrad" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stop-color="#ff3333"/>
+                      <stop offset="40%" stop-color="#0088aa"/>
+                      <stop offset="100%" stop-color="#001122"/>
+                    </radialGradient>
+                  </defs>
+                  <!-- Spiral tentacles -->
+                  <path class="vortex-spiral s1" d="M32 32 Q42 22 48 32 Q54 42 44 48" stroke="#0088aa" stroke-width="2" fill="none"/>
+                  <path class="vortex-spiral s2" d="M32 32 Q22 22 16 32 Q10 42 20 48" stroke="#0088aa" stroke-width="2" fill="none"/>
+                  <path class="vortex-spiral s3" d="M32 32 Q32 18 42 18 Q52 18 52 28" stroke="#006688" stroke-width="2" fill="none"/>
+                  <path class="vortex-spiral s4" d="M32 32 Q32 46 22 46 Q12 46 12 36" stroke="#006688" stroke-width="2" fill="none"/>
+                  <!-- Center eye -->
+                  <circle cx="32" cy="32" r="10" fill="url(#vortexGrad)" class="vortex-eye"/>
+                  <circle cx="32" cy="32" r="4" fill="#000"/>
+                  <circle cx="30" cy="30" r="2" fill="rgba(255,255,255,0.3)"/>
+                  <!-- Pulling particles -->
+                  <circle class="particle p1" cx="50" cy="20" r="2" fill="#0088aa"/>
+                  <circle class="particle p2" cx="14" cy="44" r="1.5" fill="#0088aa"/>
+                  <circle class="particle p3" cx="48" cy="50" r="1" fill="#00aacc"/>
+                </svg>
+              </div>
               <p>Drag & Drop files here</p>
               <p class="upload-hint">or click to browse</p>
               <input type="file" id="fileInput" multiple hidden />
@@ -156,22 +318,65 @@
           </div>
           <div class="pipeline-progress" id="pipelineProgress">
             <div class="pipeline-stage" data-stage="ingest">
-              <div class="stage-icon">📥</div>
+              <div class="stage-icon svg-icon ingest-icon">
+                <svg viewBox="0 0 24 24" class="monster-svg">
+                  <!-- Tentacle pulling file in -->
+                  <rect x="8" y="4" width="10" height="12" rx="1" fill="#001a2c" stroke="#0088aa" stroke-width="1"/>
+                  <path class="pull-tentacle" d="M4 18 Q2 14 4 10 Q6 6 10 8" stroke="#0088aa" stroke-width="2" fill="none" stroke-linecap="round"/>
+                  <path class="pull-tentacle t2" d="M20 18 Q22 14 20 10 Q18 6 14 8" stroke="#006688" stroke-width="1.5" fill="none"/>
+                  <circle cx="4" cy="18" r="2" fill="#ff3333"/>
+                </svg>
+              </div>
               <div class="stage-label">Ingest</div>
               <div class="stage-bar"><div class="stage-fill"></div></div>
             </div>
             <div class="pipeline-stage" data-stage="analyze">
-              <div class="stage-icon">🔬</div>
+              <div class="stage-icon svg-icon analyze-icon">
+                <svg viewBox="0 0 24 24" class="monster-svg">
+                  <!-- Brain-like tentacles thinking -->
+                  <ellipse cx="12" cy="10" rx="8" ry="6" fill="#220022" stroke="#0088aa" stroke-width="1"/>
+                  <path class="brain-tentacle b1" d="M6 14 Q4 18 6 20" stroke="#0088aa" stroke-width="1.5" fill="none"/>
+                  <path class="brain-tentacle b2" d="M10 15 Q10 19 8 21" stroke="#0088aa" stroke-width="1.5" fill="none"/>
+                  <path class="brain-tentacle b3" d="M14 15 Q14 19 16 21" stroke="#0088aa" stroke-width="1.5" fill="none"/>
+                  <path class="brain-tentacle b4" d="M18 14 Q20 18 18 20" stroke="#0088aa" stroke-width="1.5" fill="none"/>
+                  <!-- Thinking sparks -->
+                  <circle class="spark" cx="8" cy="8" r="1" fill="#ff3333"/>
+                  <circle class="spark s2" cx="14" cy="7" r="1" fill="#ff3333"/>
+                  <circle class="spark s3" cx="16" cy="10" r="0.8" fill="#ffaa00"/>
+                </svg>
+              </div>
               <div class="stage-label">Analyze</div>
               <div class="stage-bar"><div class="stage-fill"></div></div>
             </div>
             <div class="pipeline-stage" data-stage="visualize">
-              <div class="stage-icon">📊</div>
+              <div class="stage-icon svg-icon visualize-icon">
+                <svg viewBox="0 0 24 24" class="monster-svg">
+                  <!-- Eye projecting charts -->
+                  <circle cx="6" cy="12" r="5" fill="#330000" stroke="#ff3333" stroke-width="1"/>
+                  <circle cx="6" cy="12" r="2" fill="#ff3333" class="proj-eye"/>
+                  <circle cx="6" cy="12" r="0.8" fill="#000"/>
+                  <!-- Projected chart lines -->
+                  <line class="proj-line" x1="11" y1="12" x2="22" y2="12" stroke="#0088aa" stroke-width="1" opacity="0.4"/>
+                  <path class="proj-chart" d="M12 16 L14 10 L16 14 L18 8 L20 12 L22 6" stroke="#00ccee" stroke-width="1.5" fill="none"/>
+                  <path class="proj-chart c2" d="M12 18 L15 16 L18 17 L21 15" stroke="#ff3333" stroke-width="1" fill="none" opacity="0.6"/>
+                </svg>
+              </div>
               <div class="stage-label">Visualize</div>
               <div class="stage-bar"><div class="stage-fill"></div></div>
             </div>
             <div class="pipeline-stage" data-stage="reflect">
-              <div class="stage-icon">🧠</div>
+              <div class="stage-icon svg-icon reflect-icon">
+                <svg viewBox="0 0 24 24" class="monster-svg">
+                  <!-- Mirror tentacle reflection -->
+                  <line x1="12" y1="2" x2="12" y2="22" stroke="#0088aa" stroke-width="1" stroke-dasharray="2,2" opacity="0.5"/>
+                  <!-- Left tentacle -->
+                  <path class="mirror-t left" d="M4 8 Q2 12 4 16 Q6 20 4 22" stroke="#0088aa" stroke-width="2" fill="none"/>
+                  <circle cx="4" cy="8" r="2" fill="#ff3333"/>
+                  <!-- Right reflection -->
+                  <path class="mirror-t right" d="M20 8 Q22 12 20 16 Q18 20 20 22" stroke="#006688" stroke-width="2" fill="none" opacity="0.5"/>
+                  <circle cx="20" cy="8" r="2" fill="#ff3333" opacity="0.5"/>
+                </svg>
+              </div>
               <div class="stage-label">Reflect</div>
               <div class="stage-bar"><div class="stage-fill"></div></div>
             </div>
@@ -181,7 +386,22 @@
         <!-- Swarm Console -->
         <div class="card console-card">
           <h3>
-            <span class="card-icon">🐙</span>
+            <span class="card-icon svg-icon console-icon">
+              <svg viewBox="0 0 24 24" class="monster-svg">
+                <!-- Octopus/monster head -->
+                <ellipse cx="12" cy="8" rx="8" ry="6" fill="#001a2c" stroke="#0088aa" stroke-width="1"/>
+                <circle cx="9" cy="7" r="2" fill="#ff3333"/>
+                <circle cx="15" cy="7" r="2" fill="#ff3333"/>
+                <circle cx="9" cy="7" r="0.8" fill="#000"/>
+                <circle cx="15" cy="7" r="0.8" fill="#000"/>
+                <!-- Tentacles -->
+                <path class="console-tent t1" d="M4 12 Q2 16 4 20" stroke="#0088aa" stroke-width="1.5" fill="none"/>
+                <path class="console-tent t2" d="M8 13 Q7 17 9 21" stroke="#0088aa" stroke-width="1.5" fill="none"/>
+                <path class="console-tent t3" d="M12 14 Q12 18 12 22" stroke="#0088aa" stroke-width="1.5" fill="none"/>
+                <path class="console-tent t4" d="M16 13 Q17 17 15 21" stroke="#0088aa" stroke-width="1.5" fill="none"/>
+                <path class="console-tent t5" d="M20 12 Q22 16 20 20" stroke="#0088aa" stroke-width="1.5" fill="none"/>
+              </svg>
+            </span>
             Swarm Console
           </h3>
           <div class="swarm-console" id="swarmConsole">
@@ -196,7 +416,23 @@
         <!-- Alerts Panel -->
         <div class="card alerts-card">
           <h3>
-            <span class="card-icon">🚨</span>
+            <span class="card-icon svg-icon alerts-icon">
+              <svg viewBox="0 0 24 24" class="monster-svg">
+                <!-- Red glow pulse + tentacle grab -->
+                <defs>
+                  <filter id="alertGlow">
+                    <feGaussianBlur stdDeviation="2" result="blur"/>
+                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                  </filter>
+                </defs>
+                <circle class="alert-pulse" cx="12" cy="10" r="6" fill="#ff3333" filter="url(#alertGlow)"/>
+                <circle cx="12" cy="10" r="2" fill="#000"/>
+                <!-- Grabbing tentacles -->
+                <path class="grab-tent g1" d="M4 18 Q2 14 6 12" stroke="#cc0000" stroke-width="2" fill="none"/>
+                <path class="grab-tent g2" d="M20 18 Q22 14 18 12" stroke="#cc0000" stroke-width="2" fill="none"/>
+                <path class="grab-tent g3" d="M12 20 Q12 16 12 14" stroke="#880000" stroke-width="1.5" fill="none"/>
+              </svg>
+            </span>
             Proactive Alerts
             <span class="alert-badge" id="alertBadge">0</span>
           </h3>
@@ -206,7 +442,16 @@
         <!-- Charts Panel -->
         <div class="card charts-card">
           <h3>
-            <span class="card-icon">📈</span>
+            <span class="card-icon svg-icon charts-icon">
+              <svg viewBox="0 0 24 24" class="monster-svg">
+                <!-- Chart with tentacle data lines -->
+                <line x1="4" y1="20" x2="4" y2="4" stroke="#0088aa" stroke-width="1" opacity="0.5"/>
+                <line x1="4" y1="20" x2="22" y2="20" stroke="#0088aa" stroke-width="1" opacity="0.5"/>
+                <path class="chart-tentacle" d="M6 16 Q8 10 12 12 Q16 14 18 8 Q20 4 22 6" stroke="#00ccee" stroke-width="2" fill="none"/>
+                <circle cx="12" cy="12" r="2" fill="#ff3333" class="chart-node"/>
+                <circle cx="18" cy="8" r="2" fill="#ff3333" class="chart-node"/>
+              </svg>
+            </span>
             Dynamic Charts
           </h3>
           <div class="chart-tabs" id="chartTabs">
