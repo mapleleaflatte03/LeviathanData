@@ -1,11 +1,16 @@
 import { config } from './config.js';
 
+const MAX_RETRIES = 5;
+const BASE_DELAY_MS = 500;
+
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
 const buildHeaders = (apiKey) => ({
   'Content-Type': 'application/json',
   ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
 });
 
-const fetchChat = async (payload, useFallback = false) => {
+const fetchChatOnce = async (payload, useFallback = false) => {
   const baseUrl = useFallback && config.llmFallback.baseUrl ? config.llmFallback.baseUrl : config.llm.baseUrl;
   const apiKey = useFallback && config.llmFallback.apiKey ? config.llmFallback.apiKey : config.llm.apiKey;
   if (!baseUrl) throw new Error('LLM base URL not configured');
@@ -22,17 +27,32 @@ const fetchChat = async (payload, useFallback = false) => {
   return res;
 };
 
+const fetchChatWithRetry = async (payload, useFallback = false) => {
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await fetchChatOnce(payload, useFallback);
+    } catch (err) {
+      lastErr = err;
+      const waitMs = BASE_DELAY_MS * Math.pow(2, attempt - 1); // 500, 1000, 2000, 4000, 8000
+      console.warn(`[LLM] Attempt ${attempt}/${MAX_RETRIES} failed${useFallback ? ' (fallback)' : ''}: ${err.message}. Retrying in ${waitMs}ms...`);
+      if (attempt < MAX_RETRIES) await delay(waitMs);
+    }
+  }
+  throw lastErr;
+};
+
 export const chatCompletion = async ({ messages, stream = false }) => {
   const model = config.llm.model || 'qwen3-32b';
   const payload = { model, messages, stream };
   try {
-    const res = await fetchChat(payload, false);
-    return res;
+    return await fetchChatWithRetry(payload, false);
   } catch (err) {
     if (!config.llmFallback.baseUrl) throw err;
+    console.warn(`[LLM] Primary exhausted after ${MAX_RETRIES} attempts, trying fallback...`);
     const fallbackModel = config.llmFallback.model || model;
     const fallbackPayload = { model: fallbackModel, messages, stream };
-    return fetchChat(fallbackPayload, true);
+    return fetchChatWithRetry(fallbackPayload, true);
   }
 };
 
