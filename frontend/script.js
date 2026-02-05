@@ -98,6 +98,8 @@ const showToast = (message, type = 'info', duration = 4000) => {
 
 // ===== REPORT DOWNLOAD =====
 const downloadReport = async (filename, type = 'pdf') => {
+  console.log('[OpenClaw] downloadReport called:', { filename, type, hasToken: !!state.accessToken });
+  
   if (!state.accessToken) {
     showToast('Vui lòng đăng nhập để tải report', 'warning');
     return;
@@ -106,34 +108,44 @@ const downloadReport = async (filename, type = 'pdf') => {
   try {
     showToast(`Đang tải ${type.toUpperCase()} report...`, 'info');
     
-    const res = await fetch(`/api/reports/${filename}`, {
+    const url = `/api/reports/${filename}`;
+    console.log('[OpenClaw] Fetching:', url);
+    
+    const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${state.accessToken}`
       }
     });
     
+    console.log('[OpenClaw] Response status:', res.status);
+    
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+      const errText = await res.text();
+      console.error('[OpenClaw] Error response:', errText);
+      throw new Error(`HTTP ${res.status}: ${errText}`);
     }
     
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+    console.log('[OpenClaw] Blob size:', blob.size);
+    const blobUrl = URL.createObjectURL(blob);
     
     if (type === 'html') {
       // Open HTML in new tab
-      window.open(url, '_blank');
+      window.open(blobUrl, '_blank');
     } else {
       // Download PDF
       const a = document.createElement('a');
-      a.href = url;
+      a.href = blobUrl;
       a.download = filename;
+      document.body.appendChild(a);
       a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
     }
     
     showToast(`${type.toUpperCase()} report tải thành công!`, 'success');
   } catch (err) {
-    console.error('Download report error:', err);
+    console.error('[OpenClaw] Download report error:', err);
     showToast(`Lỗi tải report: ${err.message}`, 'error');
   }
 };
@@ -367,6 +379,7 @@ const handleOpenClawProgress = (payload) => {
 };
 
 const handleOpenClawComplete = (payload) => {
+  console.log('[OpenClaw] Complete payload:', payload);
   openclawState.analyzing = false;
   finishStreaming();
   
@@ -380,6 +393,8 @@ const handleOpenClawComplete = (payload) => {
     reportPdfPath,
     reportHtmlPath 
   } = payload;
+  
+  console.log('[OpenClaw] Report paths:', { reportPdfPath, reportHtmlPath });
   
   // Hide progress, show results
   const progressPanel = $('#openclawProgress');
@@ -418,16 +433,35 @@ const handleOpenClawComplete = (payload) => {
   
   // Render download buttons
   if (downloadsEl) {
-    let btns = '';
+    downloadsEl.innerHTML = '';
+    
     if (reportPdfPath) {
       const pdfFilename = reportPdfPath.split('/').pop();
-      btns += `<button class="openclaw-download-btn pdf" onclick="downloadReport('${pdfFilename}', 'pdf')">📄 PDF Report</button>`;
+      const pdfBtn = document.createElement('button');
+      pdfBtn.className = 'openclaw-download-btn pdf';
+      pdfBtn.innerHTML = '📄 PDF Report';
+      pdfBtn.addEventListener('click', () => {
+        console.log('[OpenClaw] Downloading PDF:', pdfFilename);
+        downloadReport(pdfFilename, 'pdf');
+      });
+      downloadsEl.appendChild(pdfBtn);
     }
+    
     if (reportHtmlPath) {
       const htmlFilename = reportHtmlPath.split('/').pop();
-      btns += `<button class="openclaw-download-btn html" onclick="downloadReport('${htmlFilename}', 'html')">🌐 HTML Report</button>`;
+      const htmlBtn = document.createElement('button');
+      htmlBtn.className = 'openclaw-download-btn html';
+      htmlBtn.innerHTML = '🌐 HTML Report';
+      htmlBtn.addEventListener('click', () => {
+        console.log('[OpenClaw] Downloading HTML:', htmlFilename);
+        downloadReport(htmlFilename, 'html');
+      });
+      downloadsEl.appendChild(htmlBtn);
     }
-    downloadsEl.innerHTML = btns || '<span style="color: var(--ghost); opacity: 0.7;">Reports đang được tạo...</span>';
+    
+    if (!reportPdfPath && !reportHtmlPath) {
+      downloadsEl.innerHTML = '<span style="color: var(--ghost); opacity: 0.7;">Reports đang được tạo...</span>';
+    }
   }
   
   // Display analysis in chat
