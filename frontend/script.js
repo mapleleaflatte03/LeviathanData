@@ -96,6 +96,51 @@ const showToast = (message, type = 'info', duration = 4000) => {
   setTimeout(() => toast.remove(), duration);
 };
 
+// ===== REPORT DOWNLOAD =====
+const downloadReport = async (filename, type = 'pdf') => {
+  if (!state.accessToken) {
+    showToast('Vui lòng đăng nhập để tải report', 'warning');
+    return;
+  }
+  
+  try {
+    showToast(`Đang tải ${type.toUpperCase()} report...`, 'info');
+    
+    const res = await fetch(`/api/reports/${filename}`, {
+      headers: {
+        Authorization: `Bearer ${state.accessToken}`
+      }
+    });
+    
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    
+    if (type === 'html') {
+      // Open HTML in new tab
+      window.open(url, '_blank');
+    } else {
+      // Download PDF
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+    
+    showToast(`${type.toUpperCase()} report tải thành công!`, 'success');
+  } catch (err) {
+    console.error('Download report error:', err);
+    showToast(`Lỗi tải report: ${err.message}`, 'error');
+  }
+};
+
+// Make downloadReport globally available
+window.downloadReport = downloadReport;
+
 // ===== STATUS =====
 const setStatus = (text, connected = false) => {
   statusEl.querySelector('.status-text').textContent = text;
@@ -375,10 +420,12 @@ const handleOpenClawComplete = (payload) => {
   if (downloadsEl) {
     let btns = '';
     if (reportPdfPath) {
-      btns += `<button class="openclaw-download-btn pdf" onclick="window.open('/api/reports/${reportPdfPath.split('/').pop()}', '_blank')">📄 PDF Report</button>`;
+      const pdfFilename = reportPdfPath.split('/').pop();
+      btns += `<button class="openclaw-download-btn pdf" onclick="downloadReport('${pdfFilename}', 'pdf')">📄 PDF Report</button>`;
     }
     if (reportHtmlPath) {
-      btns += `<button class="openclaw-download-btn html" onclick="window.open('/api/reports/${reportHtmlPath.split('/').pop()}', '_blank')">🌐 HTML Report</button>`;
+      const htmlFilename = reportHtmlPath.split('/').pop();
+      btns += `<button class="openclaw-download-btn html" onclick="downloadReport('${htmlFilename}', 'html')">🌐 HTML Report</button>`;
     }
     downloadsEl.innerHTML = btns || '<span style="color: var(--ghost); opacity: 0.7;">Reports đang được tạo...</span>';
   }
@@ -593,7 +640,7 @@ const appendChat = (role, content) => {
         <div class="mini-eye"></div>
       </div>
       <div class="message">
-        <span class="sender">Leviathan</span>
+        <span class="sender">OpenClaw</span>
         <p></p>
       </div>
     `;
@@ -625,6 +672,41 @@ const finishStreaming = () => {
 const sendChat = () => {
   const text = chatInput.value.trim();
   if (!text || !state.ws) return;
+  
+  // Check if this is an OpenClaw analysis request
+  const openclawTriggers = [
+    /phân tích (?:công ty |osint )?(.+)/i,
+    /analyze (?:company )?(.+)/i,
+    /osint (.+)/i,
+    /check (?:công ty )?(.+)/i,
+    /due diligence (.+)/i,
+    /thu thập (?:dữ liệu |thông tin )?(.+)/i,
+    /kiểm tra (?:công ty )?(.+)/i,
+  ];
+  
+  let companyMatch = null;
+  for (const trigger of openclawTriggers) {
+    const match = text.match(trigger);
+    if (match && match[1]) {
+      companyMatch = match[1].trim();
+      break;
+    }
+  }
+  
+  // If company detected, auto-trigger OpenClaw
+  if (companyMatch) {
+    appendChat('user', text);
+    state.chatMessages.push({ role: 'user', content: text });
+    chatInput.value = '';
+    
+    // Use the OpenClaw input for the analysis
+    const openclawInput = $('#openclawInput');
+    if (openclawInput) {
+      openclawInput.value = companyMatch;
+    }
+    startOpenClawAnalysis();
+    return;
+  }
   
   appendChat('user', text);
   state.chatMessages.push({ role: 'user', content: text });

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import fs from 'node:fs/promises';
+import { createReadStream, existsSync } from 'node:fs';
 import path from 'node:path';
 import { getDb } from '../db.js';
 import { config } from '../config.js';
@@ -147,6 +148,54 @@ router.post('/pdf', async (req, res) => {
       }
     }
     return res.status(500).json({ error: `PDF generation failed: ${err.message}` });
+  }
+});
+
+// Serve report files (PDF/HTML) from data/reports
+router.get('/:filename', async (req, res) => {
+  const { filename } = req.params;
+  
+  // Security: only allow alphanumeric, dash, underscore, dot
+  if (!/^[a-zA-Z0-9_\-\.]+\.(pdf|html)$/.test(filename)) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+  
+  const filePath = path.join(config.reportDir, filename);
+  
+  // Check file exists
+  if (!existsSync(filePath)) {
+    return res.status(404).json({ error: 'Report not found' });
+  }
+  
+  // Set content type
+  const ext = path.extname(filename).toLowerCase();
+  const contentType = ext === '.pdf' ? 'application/pdf' : 'text/html';
+  
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+  
+  // Stream file
+  const stream = createReadStream(filePath);
+  stream.pipe(res);
+  stream.on('error', (err) => {
+    res.status(500).json({ error: `Error reading file: ${err.message}` });
+  });
+});
+
+// List available reports
+router.get('/', async (req, res) => {
+  try {
+    const files = await fs.readdir(config.reportDir);
+    const reports = files
+      .filter(f => f.endsWith('.pdf') || f.endsWith('.html'))
+      .map(f => ({
+        filename: f,
+        url: `/api/reports/${f}`,
+        type: f.endsWith('.pdf') ? 'pdf' : 'html'
+      }));
+    return res.json({ reports, count: reports.length });
+  } catch (err) {
+    return res.json({ reports: [], count: 0 });
   }
 });
 
