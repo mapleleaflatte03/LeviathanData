@@ -55,13 +55,16 @@ export const createApp = async ({ startPython = true, startBackground = true } =
   const app = express();
   const server = http.createServer(app);
 
+  // Trust proxy - needed when behind Caddy/nginx reverse proxy
+  app.set('trust proxy', 1);
+
   const registry = new client.Registry();
   client.collectDefaultMetrics({ register: registry });
 
   app.use(pinoHttp({ logger: log }));
   app.use(helmet());
   app.use(cors({ origin: config.corsOrigin, credentials: true }));
-  app.use(rateLimit({ windowMs: 60 * 1000, limit: 120 }));
+  app.use(rateLimit({ windowMs: 60 * 1000, limit: 120, validate: { xForwardedForHeader: false } }));
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true }));
 
