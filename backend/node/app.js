@@ -99,9 +99,21 @@ export const createApp = async ({ startPython = true, startBackground = true } =
   app.use('/api/reports', authMiddleware, reportRoutes);
 
   const frontendRoot = path.join(paths.root, 'frontend');
-  app.use(express.static(frontendRoot));
+  
+  // Disable caching for development - force fresh assets
+  app.use((req, res, next) => {
+    if (req.path.endsWith('.js') || req.path.endsWith('.css') || req.path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+    next();
+  });
+  
+  app.use(express.static(frontendRoot, { etag: false, lastModified: false }));
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not found' });
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(frontendRoot, 'index.html'));
   });
 

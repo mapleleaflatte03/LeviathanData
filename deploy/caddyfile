@@ -13,6 +13,14 @@ app.welliam.codes {
         Permissions-Policy "geolocation=(), microphone=(), camera=()"
     }
     
+    # Disable caching for static assets (development)
+    @static {
+        path *.js *.css *.html
+    }
+    header @static Cache-Control "no-cache, no-store, must-revalidate"
+    header @static Pragma "no-cache"
+    header @static Expires "0"
+    
     # WebSocket endpoint - MUST be HTTP/1.1 for upgrade
     handle /ws {
         reverse_proxy localhost:3000 {
