@@ -21,6 +21,7 @@ XGBOOST_AVAILABLE = False
 try:
     from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
     from sklearn.linear_model import LogisticRegression
+    from sklearn.svm import LinearSVC
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.naive_bayes import MultinomialNB as SklearnNB
     from sklearn.pipeline import Pipeline
@@ -103,7 +104,7 @@ TARGET_HINTS = [
     "classlabel",
 ]
 MAX_TABULAR_ROWS = 60000
-MAX_TEXT_ROWS = 3000
+MAX_TEXT_ROWS = 50000
 SEED = 42
 KNOWN_DATASETS = {
     "air-quality",
@@ -640,8 +641,11 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
     cleaned[text_col] = cleaned[text_col].astype(str)
     cleaned[target_col] = cleaned[target_col].astype(str)
     
-    # Truncate very long texts to save memory (keep first 1000 chars)
-    cleaned[text_col] = cleaned[text_col].str[:1000]
+    # Aggressive text cleanup for better accuracy
+    cleaned[text_col] = cleaned[text_col].str.replace(r'<[^>]+>', ' ', regex=True)  # HTML tags
+    cleaned[text_col] = cleaned[text_col].str.replace(r'[^a-zA-Z\s]', ' ', regex=True)  # Keep only letters
+    cleaned[text_col] = cleaned[text_col].str.replace(r'\s+', ' ', regex=True)  # Multiple spaces
+    cleaned[text_col] = cleaned[text_col].str.lower().str.strip()  # Lowercase
 
     if len(cleaned) > MAX_TEXT_ROWS:
         cleaned = cleaned.sample(n=MAX_TEXT_ROWS, random_state=SEED)
@@ -711,7 +715,7 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
         try:
             # TF-IDF + MultinomialNB (fast sklearn implementation)
             tfidf_nb = Pipeline([
-                ('tfidf', TfidfVectorizer(max_features=10000, ngram_range=(1, 2), stop_words='english', min_df=3, sublinear_tf=True)),
+                ('tfidf', TfidfVectorizer(max_features=30000, ngram_range=(1, 3), min_df=2, sublinear_tf=True)),
                 ('clf', SklearnNB(alpha=0.1))
             ])
             tfidf_nb.fit(train_text, y_train)
@@ -725,26 +729,39 @@ def _run_text_classification(df: pd.DataFrame, target_col: str, text_col: str, d
                 selected_name = "tfidf_multinomial_nb"
                 refined = True
             
-            # TF-IDF + LogisticRegression (often best for text)
-            tfidf_lr = Pipeline([
-                ('tfidf', TfidfVectorizer(max_features=15000, ngram_range=(1, 2), stop_words='english', min_df=3, sublinear_tf=True)),
-                ('clf', LogisticRegression(max_iter=500, C=5.0, random_state=42, solver='lbfgs'))
-            ])
-            tfidf_lr.fit(train_text, y_train)
-            lr_pred = tfidf_lr.predict(test_text)
-            lr_acc = _accuracy(y_test, lr_pred.astype(object))
-            model_candidates.append("tfidf_logistic_regression")
+            # TF-IDF + LogisticRegression (only for smaller datasets - slow on large text)
+            if len(train_text) <= 40000:
+                tfidf_lr = Pipeline([
+                    ('tfidf', TfidfVectorizer(max_features=30000, ngram_range=(1, 3), min_df=2, sublinear_tf=True)),
+                    ('clf', LogisticRegression(max_iter=1000, C=1.0, random_state=42, solver='lbfgs'))
+                ])
+                tfidf_lr.fit(train_text, y_train)
+                lr_pred = tfidf_lr.predict(test_text)
+                lr_acc = _accuracy(y_test, lr_pred.astype(object))
+                model_candidates.append("tfidf_logistic_regression")
+                
+                if lr_acc > selected_acc:
+                    selected_pred = lr_pred.astype(object)
+                    selected_acc = lr_acc
+                    selected_name = "tfidf_logistic_regression"
+                    refined = True
             
-            if lr_acc > selected_acc:
-                selected_pred = lr_pred.astype(object)
-                selected_acc = lr_acc
-                selected_name = "tfidf_logistic_regression"
-                refined = True
-            
-            # Extra tuning disabled for speed
-            # Uncomment below for slightly better accuracy at cost of speed
-            # if selected_acc < 0.90:
-            #     tfidf_lr_tuned = Pipeline([...])
+            # Try LinearSVC which often beats LR for text
+            if selected_acc < 0.95 and len(train_text) <= 40000:
+                tfidf_svc = Pipeline([
+                    ('tfidf', TfidfVectorizer(max_features=30000, ngram_range=(1, 3), min_df=2, sublinear_tf=True)),
+                    ('clf', LinearSVC(C=1.0, max_iter=2000, random_state=42))
+                ])
+                tfidf_svc.fit(train_text, y_train)
+                svc_pred = tfidf_svc.predict(test_text)
+                svc_acc = _accuracy(y_test, svc_pred.astype(object))
+                model_candidates.append("tfidf_linear_svc")
+                
+                if svc_acc > selected_acc:
+                    selected_pred = svc_pred.astype(object)
+                    selected_acc = svc_acc
+                    selected_name = "tfidf_linear_svc"
+                    refined = True
         except Exception as e:
             logger.debug(f"sklearn text classifier failed: {e}")
     
