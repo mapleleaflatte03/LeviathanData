@@ -615,6 +615,126 @@ const renderChart = (type) => {
   };
   
   let data;
+  
+  // Handle distribution and correlation views by deriving from main data
+  if (type === 'distribution' || type === 'correlation') {
+    const mainData = state.chartData['main'];
+    if (!mainData || (!mainData.actual && !mainData.y)) {
+      // No data available
+      data = [{
+        x: ['Upload a file'],
+        y: [0],
+        type: 'bar',
+        marker: { color: 'rgba(0,136,170,0.3)' }
+      }];
+      layout.annotations = [{
+        text: 'Upload a file to see ' + type + ' analysis',
+        showarrow: false,
+        x: 0.5,
+        y: 0.5,
+        xref: 'paper',
+        yref: 'paper',
+        font: { size: 14, color: 'rgba(216,243,255,0.5)' }
+      }];
+      Plotly.newPlot('plotlyChart', data, layout, config);
+      return;
+    }
+    
+    if (type === 'distribution') {
+      // Create histogram of actual vs predicted values
+      const actual = mainData.actual || mainData.y || [];
+      const predicted = mainData.predicted || [];
+      
+      data = [{
+        x: actual,
+        type: 'histogram',
+        name: 'Actual',
+        marker: { color: '#0088aa', line: { color: '#00aacc', width: 1 } },
+        opacity: 0.7,
+        nbinsx: 20
+      }];
+      
+      if (predicted.length > 0) {
+        data.push({
+          x: predicted,
+          type: 'histogram',
+          name: 'Predicted',
+          marker: { color: '#00cc66', line: { color: '#00ff88', width: 1 } },
+          opacity: 0.7,
+          nbinsx: 20
+        });
+      }
+      
+      layout.barmode = 'overlay';
+      layout.title = { text: 'Value Distribution', font: { color: '#d8f3ff', size: 16 } };
+      layout.xaxis.title = 'Value';
+      layout.yaxis.title = 'Frequency';
+      
+      Plotly.newPlot('plotlyChart', data, layout, config);
+      return;
+    }
+    
+    if (type === 'correlation') {
+      // Create correlation heatmap
+      const actual = mainData.actual || mainData.y || [];
+      const predicted = mainData.predicted || [];
+      
+      if (predicted.length === 0 || actual.length !== predicted.length) {
+        data = [{
+          x: ['Actual', 'Predicted'],
+          y: ['Predicted', 'Actual'],
+          z: [[1, 0], [0, 1]],
+          type: 'heatmap',
+          colorscale: [[0, '#000a1a'], [0.5, '#0088aa'], [1, '#00ffcc']],
+          showscale: true
+        }];
+        layout.title = { text: 'Correlation Matrix (No prediction data)', font: { color: '#d8f3ff', size: 16 } };
+      } else {
+        // Calculate correlation coefficient
+        const n = actual.length;
+        const meanActual = actual.reduce((a, b) => a + b, 0) / n;
+        const meanPredicted = predicted.reduce((a, b) => a + b, 0) / n;
+        
+        let numerator = 0;
+        let denomActual = 0;
+        let denomPredicted = 0;
+        
+        for (let i = 0; i < n; i++) {
+          const diffActual = actual[i] - meanActual;
+          const diffPredicted = predicted[i] - meanPredicted;
+          numerator += diffActual * diffPredicted;
+          denomActual += diffActual * diffActual;
+          denomPredicted += diffPredicted * diffPredicted;
+        }
+        
+        const correlation = numerator / Math.sqrt(denomActual * denomPredicted);
+        
+        data = [{
+          x: ['Actual', 'Predicted'],
+          y: ['Predicted', 'Actual'],
+          z: [[1, correlation], [correlation, 1]],
+          type: 'heatmap',
+          colorscale: [[0, '#000a1a'], [0.5, '#0088aa'], [1, '#00ffcc']],
+          showscale: true,
+          text: [[1, correlation.toFixed(3)], [correlation.toFixed(3), 1]],
+          texttemplate: '%{text}',
+          textfont: { color: '#ffffff', size: 14 }
+        }];
+        
+        layout.title = { 
+          text: `Correlation Matrix (r=${correlation.toFixed(3)})`, 
+          font: { color: '#d8f3ff', size: 16 } 
+        };
+      }
+      
+      layout.xaxis.title = '';
+      layout.yaxis.title = '';
+      
+      Plotly.newPlot('plotlyChart', data, layout, config);
+      return;
+    }
+  }
+  
   const chartData = state.chartData[type];
   
   if (chartData) {
