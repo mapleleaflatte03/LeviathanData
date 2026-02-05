@@ -62,7 +62,18 @@ export const createApp = async ({ startPython = true, startBackground = true } =
   client.collectDefaultMetrics({ register: registry });
 
   app.use(pinoHttp({ logger: log }));
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "https://cdn.plot.ly"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:"],
+        connectSrc: ["'self'", "wss:", "ws:"],
+      },
+    },
+  }));
   app.use(cors({ origin: config.corsOrigin, credentials: true }));
   app.use(rateLimit({ windowMs: 60 * 1000, limit: 120, validate: { xForwardedForHeader: false } }));
   app.use(express.json({ limit: '2mb' }));
